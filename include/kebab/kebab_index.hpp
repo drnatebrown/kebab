@@ -33,10 +33,13 @@ public:
 
     std::string get_stats() const;
 
+    std::string get_file_extension() const { return FILE_EXTENSION; }
     void save(std::ostream& out) const;
     void load(std::istream& in);
 
 private:
+    static constexpr const char* FILE_EXTENSION = ".kbb";
+
     size_t k;
     NtHash<> hasher;
     BloomFilter<> bf;

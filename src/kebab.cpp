@@ -60,7 +60,7 @@ void build_index(const BuildParams& params) {
 
     std::cerr << index.get_stats() << std::endl;
 
-    std::ofstream out(params.output_file);
+    std::ofstream out(params.output_file + index.get_file_extension());
     index.save(out);
 }
 
