@@ -1,0 +1,44 @@
+CXX = g++
+CXXFLAGS = -std=c++17 -Wall -Wextra -O3 -march=native -flto \
+           -ffast-math \
+           -funroll-loops \
+           -fomit-frame-pointer \
+           -DNDEBUG
+LDFLAGS = -flto -Wl,-O3
+# CXXFLAGS = -std=c++17 -Wall -Wextra -O0 -g -fsanitize=address,undefined
+# LDFLAGS = -fsanitize=address,undefined
+# CXXFLAGS = -std=c++17 -Wall -Wextra -O0 -g -pg
+# LDFLAGS = -pg
+INCLUDES = -I./include
+
+SRC_DIR = src
+OBJ_DIR = obj
+
+SRCS = src/kebab.cpp \
+       src/kebab/kebab_index.cpp \
+       src/kebab/nt_hash.cpp
+
+OBJS = obj/kebab.o \
+       obj/kebab/kebab_index.o \
+       obj/kebab/nt_hash.o
+
+# Add header dependencies
+DEPS = $(OBJS:.o=.d)
+
+TARGET = kebab
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CXX) $(OBJS) $(LDFLAGS) -o $@
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -MMD -MP -c $< -o $@
+
+-include $(DEPS)
+
+clean:
+	rm -rf $(OBJ_DIR) $(TARGET)
