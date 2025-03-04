@@ -8,11 +8,11 @@
 #include <cmath>
 #include <iostream>
 
+#include "constants.hpp"
+
 #include "kebab/domain_hash.hpp"
 
-
 namespace {
-inline constexpr double DEFAULT_ERROR_RATE = 0.01;
 
 constexpr uint64_t SEEDS[] = {          
     0x153C67147CEBD9C1, 0xE9E9221977E2486E,
@@ -49,7 +49,7 @@ public:
 
     BloomFilter() : num_elements(0), error_rate(0), bits(0), set_bits(0), filter(), num_hashes(0), hash() {}
 
-    BloomFilter(size_t elements, double error_rate = DEFAULT_ERROR_RATE, size_t num_hashes = 0) {
+    BloomFilter(size_t elements, double error_rate = DEFAULT_FP_RATE, size_t num_hashes = DEFAULT_HASH_FUNCS) {
         init(elements, error_rate, num_hashes);
     }
 
@@ -86,7 +86,7 @@ public:
                "\t# Hashes: " + std::to_string(num_hashes) + "\n"
                "\t# Set Bits: " + std::to_string(set_bits) + "\n"
                "\t# Bits: " + std::to_string(bits) + "\n"
-               "\tLoad: " + std::to_string(load_factor) + "\n";
+               "\tLoad: " + std::to_string(load_factor);
     }
     
     void save(std::ostream& out) const {

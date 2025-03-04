@@ -2,17 +2,74 @@
 #include <stdio.h>
 #include <fstream>
 #include <unistd.h>
+#include <chrono>
 
 #include "external/kseq.h"
 #include "external/CLI11.hpp"
-#include "kebab/kebab_index.hpp"
+#include "external/hll/hll.h"
 
-static constexpr size_t DEFAULT_BUFFER_SIZE = 64ULL * 1024ULL * 1024ULL; // 64MB
+#include "kebab/kebab_index.hpp"
+#include "kebab/nt_hash.hpp"
+
+#include "constants.hpp"
+
 KSEQ_INIT(int, read)
 
-constexpr uint16_t DEFAULT_KMER_SIZE = 20;
-constexpr double DEFAULT_FP_RATE = 0.01;
-constexpr uint16_t DEFAULT_HASH_FUNCS = 0;
+kseq_t* open_fasta(const std::string& fasta_file, FILE** fp) {
+    *fp = fopen(fasta_file.c_str(), "r");
+    if (!*fp) {
+        if (errno == ENOENT) {
+            std::cerr << "File not found: " << fasta_file << std::endl;
+        } else {
+            std::cerr << "Error opening file " << fasta_file << ": " 
+                      << strerror(errno) << std::endl;
+        }
+        return nullptr;
+    }
+    return kseq_init(fileno(*fp));
+}
+
+uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size) {
+    const auto start_time = std::chrono::steady_clock::now();
+
+    FILE* fp;
+    kseq_t* seq = open_fasta(fasta_file, &fp);
+
+    // For progress
+    size_t file_size = std::filesystem::file_size(fasta_file);
+    size_t bytes_processed = 0;
+
+    kebab::NtHash hasher(kmer_size);
+    hll::hll_t hll(HLL_SIZE);
+
+    int64_t l = 0;
+    while ((l = kseq_read(seq)) >= 0) {
+        hasher.set_sequence(seq->seq.s, l);
+        for (size_t i = 0; i < static_cast<size_t>(l) - kmer_size + 1; ++i) {
+            hll.addh(hasher.hash());
+            hasher.unsafe_roll();
+        }
+
+        bytes_processed += l + seq->name.l + seq->comment.l + 2;  // header, seq, and newlines
+        std::cerr << "\rEstimating Cardinality: " 
+                  << std::fixed << std::setprecision(2) << std::setw(6) 
+                  << (bytes_processed * 100.0 / file_size) << "%" << std::flush;
+    }
+    const auto end_time = std::chrono::steady_clock::now();
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);   
+    std::cerr << "\rEstimating Cardinality: 100.00% [" << std::fixed << std::setprecision(2) 
+              << (elapsed.count() / 1000.0) << "s]" << std::endl;
+
+    // TODO: ADD STATS
+    std::cerr << "\tEstimate: " << static_cast<uint64_t>(std::ceil(hll.report())) << std::endl;
+    std::cerr << "\tError Bounds: " << hll.est_err() << std::endl;
+
+    kseq_destroy(seq);
+    fclose(fp);
+
+    return static_cast<uint64_t>(std::ceil(hll.report()));
+}
+
 
 struct BuildParams {
     std::string fasta_file;
@@ -24,21 +81,16 @@ struct BuildParams {
 };
 
 void build_index(const BuildParams& params) {
-    // temp for testing
-    // uint64_t expected_kmers = 445759753ULL;
-    kebab::KebabIndex index(params.kmer_size, params.expected_kmers, params.fp_rate, params.hash_funcs);
-
-    FILE* fp = fopen(params.fasta_file.c_str(), "r");
-    if (!fp) {
-        if (errno == ENOENT) {
-            std::cerr << "File not found: " << params.fasta_file << std::endl;
-        } else {
-            std::cerr << "Error opening file " << params.fasta_file << ": " 
-                      << strerror(errno) << std::endl;
-        }
-        return;
+    uint64_t num_expected_kmers = params.expected_kmers;
+    if (num_expected_kmers == 0) {
+        num_expected_kmers = card_estimate(params.fasta_file, params.kmer_size);
     }
-    kseq_t* seq = kseq_init(fileno(fp));
+    
+    const auto start_time = std::chrono::steady_clock::now();
+    kebab::KebabIndex index(params.kmer_size, num_expected_kmers, params.fp_rate, params.hash_funcs);
+
+    FILE* fp;
+    kseq_t* seq = open_fasta(params.fasta_file, &fp);
 
     // For progress
     size_t file_size = std::filesystem::file_size(params.fasta_file);
@@ -49,11 +101,14 @@ void build_index(const BuildParams& params) {
         index.add_sequence(seq->seq.s, l);
 
         bytes_processed += l + seq->name.l + seq->comment.l + 2;  // header, seq, and newlines
-        std::cerr << "\rFASTA Processed: " 
+        std::cerr << "\rIndexing: " 
                   << std::fixed << std::setprecision(2) << std::setw(6) 
                   << (bytes_processed * 100.0 / file_size) << "%" << std::flush;
     }
-    std::cerr << "\rFASTA Processed: 100.00%" << std::endl;
+    const auto end_time = std::chrono::steady_clock::now();
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    std::cerr << "\rIndexing: 100.00% [" << std::fixed << std::setprecision(2) 
+              << (elapsed.count() / 1000.0) << "s]" << std::endl;
 
     kseq_destroy(seq);
     fclose(fp);
@@ -64,14 +119,12 @@ void build_index(const BuildParams& params) {
     index.save(out);
 }
 
-constexpr uint64_t DEFAULT_MIN_MEM_LENGTH = 20;
-constexpr bool DEFAULT_SORT_FRAGMENTS = false;
-
 struct ScanParams {
     std::string fasta_file;
     std::string index_file;
     std::string output_file;
     bool sort_fragments = DEFAULT_SORT_FRAGMENTS;
+    bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS;
     uint64_t min_mem_length = DEFAULT_MIN_MEM_LENGTH;
 };
 
@@ -79,17 +132,8 @@ void scan_reads(const ScanParams& params) {
     std::ifstream index_stream(params.index_file);
     kebab::KebabIndex index(index_stream);
 
-    FILE* fp = fopen(params.fasta_file.c_str(), "r");
-    if (!fp) {
-        if (errno == ENOENT) {
-            std::cerr << "File not found: " << params.fasta_file << std::endl;
-        } else {
-            std::cerr << "Error opening file " << params.fasta_file << ": " 
-                      << strerror(errno) << std::endl;
-        }
-        return;
-    }
-    kseq_t* seq = kseq_init(fileno(fp));
+    FILE* fp;
+    kseq_t* seq = open_fasta(params.fasta_file, &fp);
     int64_t l = 0;
 
     // For maximum performance, use system buffer size
@@ -102,14 +146,15 @@ void scan_reads(const ScanParams& params) {
     setvbuf(out, nullptr, _IOFBF, buffer_size);
 
     while ((l = kseq_read(seq)) >= 0) {
-        std::vector<kebab::Fragment> fragments = index.scan_read(seq->seq.s, l, params.min_mem_length);
+        std::vector<kebab::Fragment> fragments = index.scan_read(seq->seq.s, l, params.min_mem_length, params.remove_overlaps);
 
         if (params.sort_fragments) {
             std::sort(fragments.begin(), fragments.end());
         }
 
         for (const auto& fragment : fragments) {
-            fprintf(out, ">%s:[%zu-%zu]\n", seq->name.s, fragment.start, fragment.start + fragment.length - 1);
+            // use 1-based inclusive
+            fprintf(out, ">%s:%zu-%zu\n", seq->name.s, fragment.start + 1, fragment.start + fragment.length);
             fwrite(seq->seq.s + fragment.start, 1, fragment.length, out);
             fputc('\n', out);
         }
@@ -123,29 +168,19 @@ void scan_reads(const ScanParams& params) {
 int main(int argc, char** argv) {
     CLI::App app{"KeBaB: K-mer Based Breaking"};
     app.require_subcommand(1);
-    app.set_version_flag("--version", "KeBaB 0.1");
+    app.set_version_flag("--version", "KeBaB " + std::string(VERSION));
     app.failure_message(CLI::FailureMessage::help);
 
     // BUILD COMMAND
     auto build = app.add_subcommand("build", "Build a KeBaB index");
 
-    // std::string fasta_file;
-    // std::string build_output;
-    // uint16_t kmer_size = 20;
-    // double fp_rate = 0.01;
-    // // uint16_t kmer_freq = 1;
-    // uint16_t hash_funcs = 0;  // 0 indicates not specified
-
     BuildParams build_params;
 
     build->add_option("fasta", build_params.fasta_file, "Input FASTA file")->required();
     build->add_option("-o,--output", build_params.output_file, "Output prefix for .kbb index file")->required();
-
-    // TO REMOVE
-    build->add_option("-m,--expected-kmers", build_params.expected_kmers, "Expected number of k-mers")
-        ->check(CLI::PositiveNumber)
-        ->required();
-
+    build->add_option("-m,--expected-kmers", build_params.expected_kmers, "Expected number of k-mers (if not provided, will be estimated)")
+        ->check(CLI::NonNegativeNumber)
+        ->default_val(DEFAULT_EXPECTED_KMERS);
     build->add_option("-k,--kmer-size", build_params.kmer_size, "k-mer size")
         ->default_val(DEFAULT_KMER_SIZE)
         ->check(CLI::PositiveNumber);
@@ -160,18 +195,13 @@ int main(int argc, char** argv) {
     // SCAN COMMAND
     auto scan = app.add_subcommand("scan", "Breaks sequences into fragments using KeBaB index");
 
-    // std::string read_file;
-    // std::string index_file;
-    // std::string scan_output;
-    // bool sort_fragments = false;
-    // uint64_t min_mem_length = 20;
-
     ScanParams scan_params;
 
     scan->add_option("fasta", scan_params.fasta_file, "Patterns FASTA file")->required();
     scan->add_option("-i,--index", scan_params.index_file, "KeBaB index file")->required();
     scan->add_option("-o,--output", scan_params.output_file, "Output FASTA file")->required();
     scan->add_flag("-s,--sort", scan_params.sort_fragments, "Sort fragments")->default_val(DEFAULT_SORT_FRAGMENTS);
+    scan->add_flag("-r,--remove-overlaps", scan_params.remove_overlaps, "Merge overlapping fragments")->default_val(DEFAULT_REMOVE_OVERLAPS);
     scan->add_option("-l,--mem-length", scan_params.min_mem_length, "Minimum MEM length")
         ->default_val(DEFAULT_MIN_MEM_LENGTH)
         ->check(CLI::PositiveNumber);

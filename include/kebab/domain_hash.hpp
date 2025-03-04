@@ -30,7 +30,7 @@ private:
     uint32_t shift;
 };
 
-// Above but using modulo
+// Above but using modulo (32 bits only)
 class MultiplyShiftModulo : public DomainHashFunction {
 public:
     MultiplyShiftModulo() : DomainHashFunction(0) {}
