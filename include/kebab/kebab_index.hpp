@@ -6,6 +6,8 @@
 
 #include "external/kseq.h"
 
+#include "constants.hpp"
+
 #include <string>
 #include <vector>
 #include <fstream>
@@ -23,13 +25,13 @@ struct Fragment {
 
 class KebabIndex {
 public:
-    KebabIndex(size_t k, size_t expected_kmers, double fp_rate, size_t num_hashes = 0);
+    KebabIndex(size_t k, size_t expected_kmers, double fp_rate, size_t num_hashes = DEFAULT_HASH_FUNCS);
     explicit KebabIndex(std::istream& in);
 
     size_t get_k() const { return k; }
 
     void add_sequence(const char* seq, size_t len);
-    std::vector<Fragment> scan_read(const char* seq, size_t len, uint64_t min_mem_length);
+    std::vector<Fragment> scan_read(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS);
 
     std::string get_stats() const;
 

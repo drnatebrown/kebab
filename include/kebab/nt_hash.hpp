@@ -19,6 +19,8 @@ public:
     [[nodiscard]] size_t get_pos() const noexcept { return pos; }
     [[nodiscard]] size_t get_len() const noexcept { return len; }
 
+    [[nodiscard]] static T get_max_hash() noexcept { return static_cast<T>(-1); } // maximum hash value for T
+
     [[nodiscard]] bool roll() noexcept;
     void unsafe_roll() noexcept;
     [[nodiscard]] T hash() const noexcept { return hash_val; }

@@ -15,7 +15,7 @@ protected:
     size_t domain_size;
 };
 
-// Shifts into range [0,m)
+// Shifts into range [0,m), best for power of 2 domains
 class MultiplyShift : public DomainHashFunction {  
 public:
     MultiplyShift() : DomainHashFunction(0), shift(0) {}
@@ -30,20 +30,18 @@ private:
     uint32_t shift;
 };
 
-// Above but using modulo
-class MultiplyShiftModulo : public DomainHashFunction {
+// Multiplies and takes modulo
+class MultiplyModulo : public DomainHashFunction {
 public:
     MultiplyShiftModulo() : DomainHashFunction(0) {}
     explicit MultiplyShiftModulo(size_t domain_size) : DomainHashFunction(domain_size) {}
 
     uint64_t operator()(uint64_t x, uint64_t seed) const override {
-        return ((x * seed) >> shift) % domain_size;
+        return (x * seed) % domain_size;
     }
-private:
-    static constexpr uint8_t shift = 32;
 };
 
-// MurmurHash2 optimized for 64-bit systems (MurmurHash64A)
+// MurmurHash2 optimized for 64-bit systems
 struct MurmurMix2 : public DomainHashFunction {
     MurmurMix2() : DomainHashFunction(0) {}
     explicit MurmurMix2(size_t domain_size) : DomainHashFunction(domain_size) {}
@@ -72,6 +70,8 @@ private:
     static constexpr int r = 47;
     static constexpr int len = 8;
 };
+
+// AES-NI Hash? TODO
 
 } // namespace kebab
 

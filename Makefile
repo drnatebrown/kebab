@@ -16,11 +16,12 @@ OBJ_DIR = obj
 
 SRCS = src/kebab.cpp \
        src/kebab/kebab_index.cpp \
-       src/kebab/nt_hash.cpp
-
+       src/kebab/nt_hash.cpp \
+       src/external/hll/hll.cpp
 OBJS = obj/kebab.o \
        obj/kebab/kebab_index.o \
-       obj/kebab/nt_hash.o
+       obj/kebab/nt_hash.o \
+       obj/external/hll/hll.o
 
 # Add header dependencies
 DEPS = $(OBJS:.o=.d)
