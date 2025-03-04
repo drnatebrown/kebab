@@ -77,7 +77,7 @@ struct BuildParams {
     uint16_t kmer_size = DEFAULT_KMER_SIZE;
     double fp_rate = DEFAULT_FP_RATE;
     uint16_t hash_funcs = DEFAULT_HASH_FUNCS;
-    uint64_t expected_kmers;
+    uint64_t expected_kmers = DEFAULT_EXPECTED_KMERS;
 };
 
 void build_index(const BuildParams& params) {

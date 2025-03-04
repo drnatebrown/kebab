@@ -71,6 +71,8 @@ private:
     static constexpr int len = 8;
 };
 
+// AES-NI Hash? TODO
+
 } // namespace kebab
 
 #endif // KEBAB_HASH_HPP
