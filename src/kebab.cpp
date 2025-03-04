@@ -46,7 +46,8 @@ uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size) {
     while ((l = kseq_read(seq)) >= 0) {
         hasher.set_sequence(seq->seq.s, l);
         for (size_t i = 0; i < static_cast<size_t>(l) - kmer_size + 1; ++i) {
-            hll.addh(hasher.hash());
+            hll.add(hasher.hash());
+            // hll.addl(hasher.hash()); <-hashes again
             hasher.unsafe_roll();
         }
 

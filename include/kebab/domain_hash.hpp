@@ -33,8 +33,8 @@ private:
 // Multiplies and takes modulo
 class MultiplyModulo : public DomainHashFunction {
 public:
-    MultiplyShiftModulo() : DomainHashFunction(0) {}
-    explicit MultiplyShiftModulo(size_t domain_size) : DomainHashFunction(domain_size) {}
+    MultiplyModulo() : DomainHashFunction(0) {}
+    explicit MultiplyModulo(size_t domain_size) : DomainHashFunction(domain_size) {}
 
     uint64_t operator()(uint64_t x, uint64_t seed) const override {
         return (x * seed) % domain_size;
