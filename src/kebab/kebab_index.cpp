@@ -2,16 +2,18 @@
 
 namespace kebab {
 
-KebabIndex::KebabIndex(size_t k, size_t expected_kmers,double fp_rate, size_t num_hashes)
+KebabIndex::KebabIndex(size_t k, size_t expected_kmers, double fp_rate, size_t num_hashes, bool canonical)
     : k(k)
-    , hasher(k)
+    , canonical(canonical)
+    , hasher(k, canonical)
     , bf(expected_kmers, fp_rate, num_hashes)
 {
 }
 
 KebabIndex::KebabIndex(std::istream& in) 
     : k(0)
-    , hasher()
+    , canonical(DEFAULT_CANONICAL)
+    , hasher(0, DEFAULT_CANONICAL)
     , bf()
 {
     load(in);
@@ -73,12 +75,14 @@ std::string KebabIndex::get_stats() const {
 
 void KebabIndex::save(std::ostream& out) const {
     out.write(reinterpret_cast<const char*>(&k), sizeof(k));
+    out.write(reinterpret_cast<const char*>(&canonical), sizeof(canonical));
     bf.save(out);
 }
 
 void KebabIndex::load(std::istream& in) {
     in.read(reinterpret_cast<char*>(&k), sizeof(k));
-    hasher = NtHash<>(k);
+    in.read(reinterpret_cast<char*>(&canonical), sizeof(canonical));
+    hasher = NtHash<>(k, canonical);
     bf.load(in);
 }
 

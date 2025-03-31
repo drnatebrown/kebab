@@ -25,7 +25,7 @@ struct Fragment {
 
 class KebabIndex {
 public:
-    KebabIndex(size_t k, size_t expected_kmers, double fp_rate, size_t num_hashes = DEFAULT_HASH_FUNCS);
+    KebabIndex(size_t k, size_t expected_kmers, double fp_rate, size_t num_hashes = DEFAULT_HASH_FUNCS, bool canonical = DEFAULT_CANONICAL);
     explicit KebabIndex(std::istream& in);
 
     size_t get_k() const { return k; }
@@ -43,6 +43,7 @@ private:
     static constexpr const char* FILE_EXTENSION = ".kbb";
 
     size_t k;
+    bool canonical;
     NtHash<> hasher;
     BloomFilter<> bf;
 };

@@ -15,6 +15,7 @@ static constexpr uint16_t DEFAULT_KMER_SIZE = 20;
 static constexpr double DEFAULT_FP_RATE = 0.1;
 static constexpr uint16_t DEFAULT_HASH_FUNCS = 0;
 static constexpr uint64_t DEFAULT_EXPECTED_KMERS = 0;
+static constexpr bool DEFAULT_CANONICAL = true;
 
 // SCAN
 static constexpr uint64_t DEFAULT_MIN_MEM_LENGTH = 20;
