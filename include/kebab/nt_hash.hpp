@@ -12,8 +12,8 @@ namespace kebab {
 template<typename T = uint64_t>
 class NtHash {
 public:
-    explicit NtHash(size_t k, bool canonical = DEFAULT_CANONICAL) noexcept;
-    NtHash() noexcept : k(0), canonical(DEFAULT_CANONICAL), seq(nullptr), len(0), pos(0), hash_val(0), hash_val_rc(0) {}
+    explicit NtHash(size_t k, bool rev_comp = DEFAULT_REVERSE_COMPLEMENT) noexcept;
+    NtHash() noexcept : k(0), rev_comp(DEFAULT_REVERSE_COMPLEMENT), seq(nullptr), len(0), pos(0), hash_val(0), hash_val_rc(0) {}
 
     void set_sequence(const char* seq, size_t len) noexcept;
 
@@ -25,11 +25,13 @@ public:
 
     [[nodiscard]] bool roll() noexcept;
     void unsafe_roll() noexcept;
-    [[nodiscard]] T hash() const noexcept { return canonical ? std::min(hash_val, hash_val_rc) : hash_val; }
+    [[nodiscard]] T hash() const noexcept { return hash_val; }
+    [[nodiscard]] T hash_rc() const noexcept { return hash_val_rc; }
+    [[nodiscard]] T hash_canonical() const noexcept { return rev_comp ? std::min(hash_val, hash_val_rc) : hash_val; }
 
 private:
     size_t k;
-    bool canonical;
+    bool rev_comp;
 
     const char* seq;
     size_t len;
@@ -39,11 +41,9 @@ private:
     T hash_val_rc;
 
     T rol_k_map[256];
-    T rol_k_minus_one_map_rc[256];
-    // T rol_k_map_rc[256];
+    T rol_k_map_rc[256];
     void init_rol_k_map() noexcept;
-    void init_rol_k_minus_one_map_rc() noexcept;
-    // void init_rol_k_map_rc() noexcept;
+    void init_rol_k_map_rc() noexcept;
 
     static inline T rol(T v, size_t n) noexcept;
     static inline T ror(T v, size_t n) noexcept;

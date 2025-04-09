@@ -2,28 +2,45 @@
 
 namespace kebab {
 
-KebabIndex::KebabIndex(size_t k, size_t expected_kmers, double fp_rate, size_t num_hashes, bool canonical)
+KebabIndex::KebabIndex(size_t k, size_t expected_kmers, double fp_rate, size_t num_hashes, KmerMode kmer_mode)
     : k(k)
-    , canonical(canonical)
-    , hasher(k, canonical)
+    , kmer_mode(kmer_mode)
+    , build_rev_comp(use_build_rev_comp(kmer_mode))
+    , scan_rev_comp(use_scan_rev_comp(kmer_mode))
+    , build_hasher(k, build_rev_comp)
+    , scan_hasher(k, scan_rev_comp)
     , bf(expected_kmers, fp_rate, num_hashes)
 {
 }
 
 KebabIndex::KebabIndex(std::istream& in) 
     : k(0)
-    , canonical(DEFAULT_CANONICAL)
-    , hasher(0, DEFAULT_CANONICAL)
+    , kmer_mode(DEFAULT_KMER_MODE)
+    , build_rev_comp(use_build_rev_comp(kmer_mode))
+    , scan_rev_comp(use_scan_rev_comp(kmer_mode))
+    , build_hasher(0, build_rev_comp)
+    , scan_hasher(0, scan_rev_comp)
     , bf()
 {
     load(in);
 }
 
 void KebabIndex::add_sequence(const char* seq, size_t len) {
-    hasher.set_sequence(seq, len);
+    build_hasher.set_sequence(seq, len);
     for (size_t i = 0; i < len - k + 1; ++i) {
-        bf.add(hasher.hash());
-        hasher.unsafe_roll();
+        switch (kmer_mode) {
+            case KmerMode::FORWARD_ONLY:
+                bf.add(build_hasher.hash());
+                break;
+            case KmerMode::BOTH_STRANDS:
+                bf.add(build_hasher.hash());
+                bf.add(build_hasher.hash_rc());
+                break;
+            case KmerMode::CANONICAL_ONLY:
+                bf.add(build_hasher.hash_canonical());
+                break;
+        }
+        build_hasher.unsafe_roll();
     }
     // do {
     //     bf.add(hasher.hash());
@@ -35,7 +52,7 @@ std::vector<Fragment> KebabIndex::scan_read(const char* seq, size_t len, uint64_
         throw std::invalid_argument("min_mem_length (" + std::to_string(min_mem_length) + ") must be greater than or equal to k (" + std::to_string(k) + ")");
     }
 
-    hasher.set_sequence(seq, len);
+    scan_hasher.set_sequence(seq, len);
     std::vector<Fragment> fragments;
     // fragments.reserve(remove_overlaps ? std::ceil(static_cast<double>(len) / min_mem_length) : len - k + 1);
 
@@ -57,11 +74,11 @@ std::vector<Fragment> KebabIndex::scan_read(const char* seq, size_t len, uint64_
 
     // k-mer identified by position of last character
     for (size_t i = k - 1; i < len; ++i) {
-        if (!bf.contains(hasher.hash())) {
+        if (!bf.contains(scan_rev_comp ? scan_hasher.hash_canonical() : scan_hasher.hash())) {
             update_fragments(i);
             start = i - k + 2; // i - (k - 1) + 1 -> move to start of k-mer, plus one to move past the offending k-mer
         }
-        hasher.unsafe_roll();
+        scan_hasher.unsafe_roll();
     }
     update_fragments(len);
 
@@ -75,14 +92,17 @@ std::string KebabIndex::get_stats() const {
 
 void KebabIndex::save(std::ostream& out) const {
     out.write(reinterpret_cast<const char*>(&k), sizeof(k));
-    out.write(reinterpret_cast<const char*>(&canonical), sizeof(canonical));
+    out.write(reinterpret_cast<const char*>(&kmer_mode), sizeof(kmer_mode));
     bf.save(out);
 }
 
 void KebabIndex::load(std::istream& in) {
     in.read(reinterpret_cast<char*>(&k), sizeof(k));
-    in.read(reinterpret_cast<char*>(&canonical), sizeof(canonical));
-    hasher = NtHash<>(k, canonical);
+    in.read(reinterpret_cast<char*>(&kmer_mode), sizeof(kmer_mode));
+    build_rev_comp = use_build_rev_comp(kmer_mode);
+    scan_rev_comp = use_scan_rev_comp(kmer_mode);
+    build_hasher = NtHash<>(k, build_rev_comp);
+    scan_hasher = NtHash<>(k, scan_rev_comp);
     bf.load(in);
 }
 
