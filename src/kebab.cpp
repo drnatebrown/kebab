@@ -46,8 +46,12 @@ uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, bool c
     while ((l = kseq_read(seq)) >= 0) {
         hasher.set_sequence(seq->seq.s, l);
         for (size_t i = 0; i < static_cast<size_t>(l) - kmer_size + 1; ++i) {
-            hll.add(hasher.hash());
-            // hll.addl(hasher.hash()); <-hashes again
+            if (canonical) {
+                // TODO use nt_hash to rehash instead
+                hll.addh(hasher.hash()); // hashes again, since canonical biases estimate lower
+            } else {
+                hll.add(hasher.hash());
+            }
             hasher.unsafe_roll();
         }
 
@@ -177,15 +181,16 @@ int main(int argc, char** argv) {
     auto build = app.add_subcommand("build", "Build a KeBaB index");
 
     BuildParams build_params;
+    bool no_canonical = false;
 
     build->add_option("fasta", build_params.fasta_file, "Input FASTA file")->required();
     build->add_option("-o,--output", build_params.output_file, "Output prefix for .kbb index file")->required();
-    build->add_option("-m,--expected-kmers", build_params.expected_kmers, "Expected number of k-mers (if not provided, will be estimated)")
-        ->check(CLI::NonNegativeNumber)
-        ->default_val(DEFAULT_EXPECTED_KMERS);
     build->add_option("-k,--kmer-size", build_params.kmer_size, "k-mer size")
         ->default_val(DEFAULT_KMER_SIZE)
         ->check(CLI::PositiveNumber);
+    build->add_option("-m,--expected-kmers", build_params.expected_kmers, "Expected number of k-mers (if not provided, will be estimated)")
+        ->check(CLI::NonNegativeNumber)
+        ->default_val(DEFAULT_EXPECTED_KMERS);
     build->add_option("-e,--fp-rate", build_params.fp_rate, "False positive rate (between 0 and 1)")
         ->default_val(DEFAULT_FP_RATE)
         ->check(CLI::Range(0.0, 1.0))
@@ -193,11 +198,7 @@ int main(int argc, char** argv) {
     // build->add_option("-d,--kmer-freq", kmer_freq, "k-mer sampling rate")->default_val(1);
     build->add_option("-f,--hash-funcs", build_params.hash_funcs, "Number of hash functions")
         ->check(CLI::PositiveNumber);
-    bool no_canonical = false;
-    build->add_flag("--no-canonical", no_canonical, "Disable canonical k-mers (forward only)");
-    if (no_canonical) {
-        build_params.canonical = false;
-    }
+    build->add_flag("-n,--no-canonical", no_canonical, "Use non-canonical k-mers");
 
     // SCAN COMMAND
     auto scan = app.add_subcommand("scan", "Breaks sequences into fragments using KeBaB index");
@@ -217,6 +218,7 @@ int main(int argc, char** argv) {
         app.parse(argc, argv);
         
         if (build->parsed()) {
+            build_params.canonical = !no_canonical;
             build_index(build_params);
         }
         if (scan->parsed()) {

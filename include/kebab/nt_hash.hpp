@@ -39,9 +39,11 @@ private:
     T hash_val_rc;
 
     T rol_k_map[256];
-    T rol_k_map_rc[256];
+    T rol_k_minus_one_map_rc[256];
+    // T rol_k_map_rc[256];
     void init_rol_k_map() noexcept;
-    void init_rol_k_map_rc() noexcept;
+    void init_rol_k_minus_one_map_rc() noexcept;
+    // void init_rol_k_map_rc() noexcept;
 
     static inline T rol(T v, size_t n) noexcept;
     static inline T ror(T v, size_t n) noexcept;

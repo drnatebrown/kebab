@@ -112,10 +112,12 @@ NtHash<T>::NtHash(size_t k, bool canonical) noexcept
     , hash_val(0)
     , hash_val_rc(0)
     , rol_k_map{}
-    , rol_k_map_rc{}
+    , rol_k_minus_one_map_rc{}
+    // , rol_k_map_rc{}
 {
     init_rol_k_map();
-    init_rol_k_map_rc();
+    init_rol_k_minus_one_map_rc();
+    // init_rol_k_map_rc();
 }
 
 template<typename T>
@@ -166,9 +168,14 @@ void NtHash<T>::unsafe_roll() noexcept {
 
     if (canonical) {
         hash_val_rc = ror(hash_val_rc, 1);
-        hash_val_rc ^= rol_k_map_rc[outgoing];
-        hash_val_rc ^= NtMap<T>::map_rc[incoming];
+        hash_val_rc ^= ror(NtMap<T>::map_rc[outgoing], 1);
+        hash_val_rc ^= rol_k_minus_one_map_rc[incoming];
     }
+    // if (canonical) {
+    //     hash_val_rc ^= NtMap<T>::map_rc[outgoing];
+    //     hash_val_rc ^= rol_k_map_rc[incoming];
+    //     hash_val_rc = ror(hash_val_rc, 1);
+    // }
     
     ++pos;
 }
@@ -186,16 +193,28 @@ void NtHash<T>::init_rol_k_map() noexcept {
 }
 
 template<typename T>
-void NtHash<T>::init_rol_k_map_rc() noexcept {
-    rol_k_map_rc['A'] = rol_k_map['T'];
-    rol_k_map_rc['C'] = rol_k_map['G'];
-    rol_k_map_rc['G'] = rol_k_map['C'];
-    rol_k_map_rc['T'] = rol_k_map['A'];
-    rol_k_map_rc['a'] = rol_k_map_rc['A'];
-    rol_k_map_rc['c'] = rol_k_map_rc['C'];
-    rol_k_map_rc['g'] = rol_k_map_rc['G'];
-    rol_k_map_rc['t'] = rol_k_map_rc['T'];
+void NtHash<T>::init_rol_k_minus_one_map_rc() noexcept {
+    rol_k_minus_one_map_rc['A'] = rol(NtMap<T>::map_rc['A'], k - 1);
+    rol_k_minus_one_map_rc['C'] = rol(NtMap<T>::map_rc['C'], k - 1);
+    rol_k_minus_one_map_rc['G'] = rol(NtMap<T>::map_rc['G'], k - 1);
+    rol_k_minus_one_map_rc['T'] = rol(NtMap<T>::map_rc['T'], k - 1);
+    rol_k_minus_one_map_rc['a'] = rol_k_minus_one_map_rc['A'];
+    rol_k_minus_one_map_rc['c'] = rol_k_minus_one_map_rc['C'];
+    rol_k_minus_one_map_rc['g'] = rol_k_minus_one_map_rc['G'];
+    rol_k_minus_one_map_rc['t'] = rol_k_minus_one_map_rc['T'];
 }
+
+// template<typename T>
+// void NtHash<T>::init_rol_k_map_rc() noexcept {
+//     rol_k_map_rc['A'] = rol(NtMap<T>::map_rc['A'], k);
+//     rol_k_map_rc['C'] = rol(NtMap<T>::map_rc['C'], k);
+//     rol_k_map_rc['G'] = rol(NtMap<T>::map_rc['G'], k);
+//     rol_k_map_rc['T'] = rol(NtMap<T>::map_rc['T'], k);
+//     rol_k_map_rc['a'] = rol_k_map_rc['A'];
+//     rol_k_map_rc['c'] = rol_k_map_rc['C'];
+//     rol_k_map_rc['g'] = rol_k_map_rc['G'];
+//     rol_k_map_rc['t'] = rol_k_map_rc['T'];
+// }
 
 template<typename T>
 T NtHash<T>::rol(T v, size_t n) noexcept {
