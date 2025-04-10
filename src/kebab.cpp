@@ -91,6 +91,7 @@ struct BuildParams {
     uint16_t hash_funcs = DEFAULT_HASH_FUNCS;
     uint64_t expected_kmers = DEFAULT_EXPECTED_KMERS;
     KmerMode kmer_mode = DEFAULT_KMER_MODE;
+    bool round_filter_size = DEFAULT_ROUND_FILTER_SIZE;
 };
 
 void build_index(const BuildParams& params) {
@@ -188,6 +189,7 @@ int main(int argc, char** argv) {
     auto build = app.add_subcommand("build", "Build a KeBaB index");
 
     BuildParams build_params;
+    bool no_filter_rounding = false;
 
     build->add_option("fasta", build_params.fasta_file, "Input FASTA file")->required();
     build->add_option("-o,--output", build_params.output_file, "Output prefix for .kbb index file")->required();
@@ -211,6 +213,7 @@ int main(int argc, char** argv) {
             {"both", KmerMode::BOTH_STRANDS},
             {"canonical", KmerMode::CANONICAL_ONLY}
         }));
+    build->add_flag("--use-exact-size", no_filter_rounding, "Use exact size for bloom filter instead of rounding up to power of 2");
 
     // SCAN COMMAND
     auto scan = app.add_subcommand("scan", "Breaks sequences into fragments using KeBaB index");
@@ -230,6 +233,9 @@ int main(int argc, char** argv) {
         app.parse(argc, argv);
         
         if (build->parsed()) { 
+            if (no_filter_rounding) {
+                build_params.round_filter_size = false;
+            }
             build_index(build_params);
         }
         if (scan->parsed()) {

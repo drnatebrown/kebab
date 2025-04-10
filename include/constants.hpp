@@ -25,6 +25,7 @@ static constexpr uint16_t DEFAULT_HASH_FUNCS = 0;
 static constexpr uint64_t DEFAULT_EXPECTED_KMERS = 0;
 static constexpr KmerMode DEFAULT_KMER_MODE = KmerMode::CANONICAL_ONLY;
 static constexpr bool DEFAULT_REVERSE_COMPLEMENT = true;
+static constexpr bool DEFAULT_ROUND_FILTER_SIZE = true;
 
 // SCAN
 static constexpr uint64_t DEFAULT_MIN_MEM_LENGTH = 20;

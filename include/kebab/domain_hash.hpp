@@ -3,53 +3,61 @@
 
 #include <cstdint>
 #include <cmath>
+#include <stdexcept>
+#include <variant>
 
 namespace kebab {
 
-class DomainHashFunction {
+// =============================================
+// Hash and Reducer Types
+// =============================================
+
+enum class HashType {
+    MULTIPLY,
+    MURMUR
+};
+
+enum class ReducerType {
+    SHIFT,
+    MODULO
+};
+
+// =============================================
+// Base Interfaces
+// =============================================
+
+class HashFunction {
 public:
-    DomainHashFunction() : domain_size(0) {}
-    explicit DomainHashFunction(size_t domain_size) : domain_size(domain_size) {}
     virtual uint64_t operator()(uint64_t x, uint64_t seed) const = 0;
-protected:
-    size_t domain_size;
 };
 
-// Shifts into range [0,m), best for power of 2 domains
-class MultiplyShift : public DomainHashFunction {  
+class DomainReducer {
 public:
-    MultiplyShift() : DomainHashFunction(0), shift(0) {}
-    explicit MultiplyShift(size_t domain_size) 
-        : DomainHashFunction(domain_size)
-        , shift(64 - std::floor(std::log2(domain_size))) {}
-
-    uint64_t operator()(uint64_t x, uint64_t seed) const override {
-        return ((x * seed) >> shift);
-    }
-private:
-    uint32_t shift;
+    virtual uint64_t reduce(uint64_t hash) const = 0;
 };
 
-// Multiplies and takes modulo
-class MultiplyModulo : public DomainHashFunction {
-public:
-    MultiplyModulo() : DomainHashFunction(0) {}
-    explicit MultiplyModulo(size_t domain_size) : DomainHashFunction(domain_size) {}
+// =============================================
+// Hash Function Implementations
+// =============================================
 
+class MultiplyHash : public HashFunction {
+public:
     uint64_t operator()(uint64_t x, uint64_t seed) const override {
-        return (x * seed) % domain_size;
+        return x * seed;
     }
 };
 
-// MurmurHash2 optimized for 64-bit systems
-struct MurmurMix2 : public DomainHashFunction {
-    MurmurMix2() : DomainHashFunction(0) {}
-    explicit MurmurMix2(size_t domain_size) : DomainHashFunction(domain_size) {}
-
+class NtManyHash : public HashFunction {
+public:
     uint64_t operator()(uint64_t x, uint64_t seed) const override {
+        return x * seed;
+    }
+};
 
+class MurmurHash2 : public HashFunction {
+public:
+    uint64_t operator()(uint64_t x, uint64_t seed) const override {
         uint64_t h = seed ^ (len * m);
-        
         uint64_t k = x;
         
         k *= m;
@@ -63,7 +71,7 @@ struct MurmurMix2 : public DomainHashFunction {
         h *= m;
         h ^= h >> r;
         
-        return h % domain_size;
+        return h;
     }   
 private:
     static constexpr uint64_t m = 0xc6a4a7935bd1e995ULL;
@@ -71,8 +79,63 @@ private:
     static constexpr int len = 8;
 };
 
-// AES-NI Hash? TODO
+// =============================================
+// Domain Reducer Implementations
+// =============================================
 
+class ShiftReducer : public DomainReducer {
+public:
+    explicit ShiftReducer(size_t domain_size) 
+        : shift(64 - std::floor(std::log2(domain_size))) {}
+    
+    uint64_t reduce(uint64_t hash) const override {
+        return hash >> shift;
+    }
+private:
+    uint32_t shift;
+};
+
+class ModuloReducer : public DomainReducer {
+public:
+    explicit ModuloReducer(size_t domain_size) : domain_size(domain_size) {}
+    
+    uint64_t reduce(uint64_t hash) const override {
+        return hash % domain_size;
+    }
+private:
+    size_t domain_size;
+};
+
+// =============================================
+// Hash Function + Domain Reducer Combination
+// =============================================
+
+template<typename Hash=MultiplyHash, typename Reducer=ShiftReducer>
+class DomainHashFunction {
+public:
+    DomainHashFunction(size_t domain_size)
+        : hash_(Hash())
+        , reducer_(Reducer(domain_size)) {}
+
+    uint64_t operator()(uint64_t x, uint64_t seed) const {
+        return reducer_.reduce(hash_(x, seed));
+    }
+
+private:
+    Hash hash_;
+    Reducer reducer_;
+};
+
+// =============================================
+// Common Hash Combinations
+// =============================================
+
+using MultiplyShift = DomainHashFunction<MultiplyHash, ShiftReducer>;
+using MultiplyMod = DomainHashFunction<MultiplyHash, ModuloReducer>;
+using MurmurShift = DomainHashFunction<MurmurHash2, ShiftReducer>;
+using MurmurMod = DomainHashFunction<MurmurHash2, ModuloReducer>;
+
+// AES-NI Hash? TODO
 } // namespace kebab
 
 #endif // KEBAB_HASH_HPP
