@@ -14,6 +14,7 @@ static constexpr const char* VERSION = "0.2.0";
 
 // I/O
 static constexpr size_t DEFAULT_BUFFER_SIZE = 64ULL * 1024ULL * 1024ULL; // 64MB
+static constexpr const char* KEBAB_FILE_SUFFIX = ".kbb";
 
 // ESTIMATE
 static constexpr uint64_t HLL_SIZE = 20; // 2^20 bytes

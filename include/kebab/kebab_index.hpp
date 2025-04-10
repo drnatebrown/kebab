@@ -35,13 +35,11 @@ public:
 
     std::string get_stats() const;
 
-    std::string get_file_extension() const { return FILE_EXTENSION; }
+    std::string get_file_extension() const { return KEBAB_FILE_SUFFIX; }
     void save(std::ostream& out) const;
     void load(std::istream& in);
 
 private:
-    static constexpr const char* FILE_EXTENSION = ".kbb";
-
     size_t k;
     KmerMode kmer_mode;
     bool build_rev_comp;

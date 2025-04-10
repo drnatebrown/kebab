@@ -190,11 +190,11 @@ int main(int argc, char** argv) {
     BuildParams build_params;
 
     build->add_option("fasta", build_params.fasta_file, "Input FASTA file")->required();
-    build->add_option("-o,--output", build_params.output_file, "Output prefix for .kbb index file")->required();
-    build->add_option("-k,--kmer-size", build_params.kmer_size, "k-mer size")
+    build->add_option("-o,--output", build_params.output_file, "Output prefix for " + std::string(KEBAB_FILE_SUFFIX) + " index file")->required();
+    build->add_option("-k,--kmer-size", build_params.kmer_size, "k-mer size used to populate the index")
         ->default_val(DEFAULT_KMER_SIZE)
         ->check(CLI::PositiveNumber);
-    build->add_option("-m,--expected-kmers", build_params.expected_kmers, "Expected number of k-mers (if not provided, will be estimated)")
+    build->add_option("-m,--expected-kmers", build_params.expected_kmers, "Expected number of k-mers (otherwise estimated)")
         ->check(CLI::NonNegativeNumber)
         ->default_val(DEFAULT_EXPECTED_KMERS);
     build->add_option("-e,--fp-rate", build_params.fp_rate, "False positive rate (between 0 and 1)")
@@ -202,9 +202,9 @@ int main(int argc, char** argv) {
         ->check(CLI::Range(0.0, 1.0))
         ->type_name("FLOAT");
     // build->add_option("-d,--kmer-freq", kmer_freq, "k-mer sampling rate")->default_val(1);
-    build->add_option("-f,--hash-funcs", build_params.hash_funcs, "Number of hash functions")
+    build->add_option("-f,--hash-funcs", build_params.hash_funcs, "Number of hash functions (otherwise set to optimal)")
         ->check(CLI::PositiveNumber);
-    build->add_option("--kmer-mode", build_params.kmer_mode, "K-mer strand mode")
+    build->add_option("--kmer-mode", build_params.kmer_mode, "k-mer strand mode")
         ->default_val(DEFAULT_KMER_MODE)
         ->transform(CLI::CheckedTransformer(std::map<std::string, KmerMode>{
             {"forward", KmerMode::FORWARD_ONLY},
@@ -220,10 +220,10 @@ int main(int argc, char** argv) {
     scan->add_option("fasta", scan_params.fasta_file, "Patterns FASTA file")->required();
     scan->add_option("-i,--index", scan_params.index_file, "KeBaB index file")->required();
     scan->add_option("-o,--output", scan_params.output_file, "Output FASTA file")->required();
-    scan->add_option("-l,--mem-length", scan_params.min_mem_length, "Minimum MEM length")
+    scan->add_option("-l,--mem-length", scan_params.min_mem_length, "Minimum MEM length (must be >= k-mer size of index)")
         ->default_val(DEFAULT_MIN_MEM_LENGTH)
         ->check(CLI::PositiveNumber);
-    scan->add_flag("-s,--sort", scan_params.sort_fragments, "Sort fragments");
+    scan->add_flag("-s,--sort", scan_params.sort_fragments, "Sort fragments by length");
     scan->add_flag("-r,--remove-overlaps", scan_params.remove_overlaps, "Merge overlapping fragments");
 
     try {
