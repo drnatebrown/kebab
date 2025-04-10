@@ -1,4 +1,6 @@
 # KeBaB
+**K**-m**e**r **Ba**sed **B**reaking for finding super-maximal exact matches.
+
 ## Compile
 Creates `kebab` executable:
 ```
@@ -27,7 +29,7 @@ Options:
                               Number of hash functions
 ```
 ## Scan
-Breaks sequences into fragments using KeBaB index.
+Breaks sequences into fragments using KeBaB index. Fragments use ``[SEQ]:[START]-[END]`` notation where the range is 1-based and inclusive.
 ```
 Usage: ./kebab scan [OPTIONS] fasta
 
@@ -49,3 +51,11 @@ Options:
 ./kebab scan -o ~/data/pos_reads.frag.fa -i ~/data/ref_index.kbb -l 40 ~/data/pos_reads.fa
 ```
 Use `-s` to ensure MEMs are sorted for early stopping approaches (top t-MEMs).
+## Usage
+The fragments output by a KeBaB scan can be used with MEM-finding tools such as [ropebwt3](https://github.com/lh3/ropebwt3):
+```
+./ropebwt3 mem -l40 ~/data/ropebwt3_index.fmd ~/data/pos_reads.frag.fa > ~/data/pos_reads.frag.mems
+```
+The ``ropefix.sh`` script removes the fragment notation ``[SEQ]:[START]-[END]`` from ropebwt3's output to use global coordinates.
+```
+./ropefix.sh ~/data/pos_reads.frag.mems > ~/data/pos_reads.mems
