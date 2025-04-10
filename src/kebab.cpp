@@ -190,21 +190,21 @@ int main(int argc, char** argv) {
     BuildParams build_params;
 
     build->add_option("fasta", build_params.fasta_file, "Input FASTA file")->required();
-    build->add_option("-o,--output", build_params.output_file, "Output prefix for " + std::string(KEBAB_FILE_SUFFIX) + " index file")->required();
-    build->add_option("-k,--kmer-size", build_params.kmer_size, "k-mer size used to populate the index")
+    build->add_option("-o,--output", build_params.output_file, "Output prefix for index file, [PREFIX]" + std::string(KEBAB_FILE_SUFFIX))->required();
+    build->add_option("-k,--kmer-size", build_params.kmer_size, "K-mer size used to populate the index")
         ->default_val(DEFAULT_KMER_SIZE)
         ->check(CLI::PositiveNumber);
     build->add_option("-m,--expected-kmers", build_params.expected_kmers, "Expected number of k-mers (otherwise estimated)")
         ->check(CLI::NonNegativeNumber)
         ->default_val(DEFAULT_EXPECTED_KMERS);
-    build->add_option("-e,--fp-rate", build_params.fp_rate, "False positive rate (between 0 and 1)")
+    build->add_option("-e,--fp-rate", build_params.fp_rate, "Desired false positive rate (between 0 and 1)")
         ->default_val(DEFAULT_FP_RATE)
         ->check(CLI::Range(0.0, 1.0))
         ->type_name("FLOAT");
     // build->add_option("-d,--kmer-freq", kmer_freq, "k-mer sampling rate")->default_val(1);
-    build->add_option("-f,--hash-funcs", build_params.hash_funcs, "Number of hash functions (otherwise set to optimal)")
+    build->add_option("-f,--hash-funcs", build_params.hash_funcs, "Number of hash functions (otherwise set to minimize index size)")
         ->check(CLI::PositiveNumber);
-    build->add_option("--kmer-mode", build_params.kmer_mode, "k-mer strand mode")
+    build->add_option("--kmer-mode", build_params.kmer_mode, "K-mer strands to include in the index")
         ->default_val(DEFAULT_KMER_MODE)
         ->transform(CLI::CheckedTransformer(std::map<std::string, KmerMode>{
             {"forward", KmerMode::FORWARD_ONLY},
