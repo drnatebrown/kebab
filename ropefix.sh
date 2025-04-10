@@ -5,8 +5,8 @@
 # Usage: ./ropefix.sh input_file > output_file
 
 if [ $# -ne 1 ]; then
-    echo "Usage: $0 input_file"
-    echo "input_file is the output of running ropebwt3 with fragments"
+    echo "Usage: $0 [MEM_FILE]"
+    echo "[MEM_FILE] is the output of running ropebwt3 with KeBaBfragments"
     exit 1
 fi
 
