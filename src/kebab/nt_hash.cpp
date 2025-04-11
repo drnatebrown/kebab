@@ -207,6 +207,7 @@ T NtHash<T>::ror(T v, size_t n) noexcept {
     return (v >> n) | (v << (BITS_IN_TYPE<T> - n));
 }
 
+// Explicit instantiation
 template class NtHash<uint64_t>;
 template class NtHash<uint32_t>;
 

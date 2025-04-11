@@ -14,6 +14,7 @@
 
 namespace {
 
+// Supports at most 32 hash functions
 constexpr uint64_t SEEDS[] = {          
     0x153C67147CEBD9C1, 0xE9E9221977E2486E,
     0xBD2A5DE364F86CEC, 0xF53E63242C7C96CA,
@@ -32,7 +33,18 @@ constexpr uint64_t SEEDS[] = {
     0xE4F3205AADABEA31, 0xD631A450CF4BA7BA,
     0x7E0034EEC6C9E610, 0xCAF71C56BB5D4B4D
 };
+
+inline uint64_t previous_power_of_two(uint64_t x) {
+    if (x == 0) return 1;
+    return 1ull << static_cast<uint64_t>(std::floor(std::log2(static_cast<double>(x))));
 }
+
+inline uint64_t next_power_of_two(uint64_t x) {
+    if (x == 0) return 1;
+    return 1ull << static_cast<uint64_t>(std::ceil(std::log2(static_cast<double>(x))));
+}
+
+} // namespace  
 
 namespace kebab {
 
@@ -46,11 +58,10 @@ inline size_t calculate_num_words(size_t size) {
 template<typename Hash = MultiplyShift>
 class BloomFilter {
 public:
-
     BloomFilter() : num_elements(0), error_rate(0), bits(0), set_bits(0), filter(), num_hashes(0), hash() {}
 
-    BloomFilter(size_t elements, double error_rate = DEFAULT_FP_RATE, size_t num_hashes = DEFAULT_HASH_FUNCS) {
-        init(elements, error_rate, num_hashes);
+    BloomFilter(size_t elements, double error_rate = DEFAULT_FP_RATE, size_t num_hashes = DEFAULT_HASH_FUNCS, FilterSizeMode filter_size_mode = DEFAULT_FILTER_SIZE_MODE) {
+        init(elements, error_rate, num_hashes, filter_size_mode);
     }
 
     void add(uint64_t val) {
@@ -120,7 +131,7 @@ private:
     size_t num_hashes;
     Hash hash;
 
-    void init(size_t elements, double error_rate, size_t num_hashes) {
+    void init(size_t elements, double error_rate, size_t num_hashes, FilterSizeMode filter_size_mode) {
         num_elements = elements;
         this->error_rate = error_rate;
         validate_params();
@@ -128,6 +139,22 @@ private:
         bits = (num_hashes == 0) 
             ? optimal_bits(elements, error_rate) 
             : optimal_bits(elements, error_rate, num_hashes);
+
+        if (use_shift_filter(filter_size_mode)) {
+            uint64_t next = next_power_of_two(bits);
+            uint64_t prev = previous_power_of_two(bits);
+            // relative position between prev and next, normalized to [0, 1]
+            double relative_position = (bits - prev) / static_cast<double>(prev);
+
+            // if in lower threshold, override to round down
+            if (filter_size_mode == FilterSizeMode::NEXT_POWER_OF_TWO) {
+                bits = (relative_position <= ROUND_THRESHOLD) ? prev : next;
+            } 
+            // if in upper threshold, override to round up
+            else if (filter_size_mode == FilterSizeMode::PREVIOUS_POWER_OF_TWO) {
+                bits = (relative_position >= 1.0 - ROUND_THRESHOLD) ? next : prev;
+            }
+        }
 
         set_bits = 0;
         filter = std::vector<word_t>(calculate_num_words(bits), 0ULL);
@@ -195,6 +222,9 @@ private:
         return word_t{1} << (hash_val % BITS_PER_WORD);
     }
 };
+
+using ModFilter = BloomFilter<MultiplyMod>;
+using ShiftFilter = BloomFilter<MultiplyShift>;
 
 } // namespace kebab
 

@@ -13,6 +13,8 @@
 
 #include "constants.hpp"
 
+/* =============================== UTILITIES =============================== */
+
 KSEQ_INIT(int, read)
 
 kseq_t* open_fasta(const std::string& fasta_file, FILE** fp) {
@@ -29,6 +31,8 @@ kseq_t* open_fasta(const std::string& fasta_file, FILE** fp) {
     return kseq_init(fileno(*fp));
 }
 
+/* =============================== ESTIMATE =============================== */
+
 uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMode kmer_mode) {
     const auto start_time = std::chrono::steady_clock::now();
 
@@ -40,6 +44,8 @@ uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMo
     size_t bytes_processed = 0;
 
     kebab::NtHash hasher(kmer_size, use_build_rev_comp(kmer_mode));
+    kebab::NtManyHash rehasher; // Used only for canonical mode to rehash the value
+
     hll::hll_t hll(HLL_SIZE);
 
     int64_t l = 0;
@@ -55,8 +61,7 @@ uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMo
                     hll.add(hasher.hash_rc());
                     break;
                 case KmerMode::CANONICAL_ONLY:
-                    // TODO use nt_hash to rehash instead
-                    hll.addh(hasher.hash_canonical()); // hashes again, since canonical biases estimate lower
+                    hll.add(rehasher(hasher.hash_canonical())); // hashes again, since canonical biases estimate lower
                     break;
             }
             hasher.unsafe_roll();
@@ -82,6 +87,7 @@ uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMo
     return static_cast<uint64_t>(std::ceil(hll.report()));
 }
 
+/* =============================== BUILD =============================== */
 
 struct BuildParams {
     std::string fasta_file;
@@ -91,16 +97,31 @@ struct BuildParams {
     uint16_t hash_funcs = DEFAULT_HASH_FUNCS;
     uint64_t expected_kmers = DEFAULT_EXPECTED_KMERS;
     KmerMode kmer_mode = DEFAULT_KMER_MODE;
+    FilterSizeMode filter_size_mode = DEFAULT_FILTER_SIZE_MODE;
 };
 
-void build_index(const BuildParams& params) {
+struct SavedOptions {
+    FilterSizeMode filter_size_mode = DEFAULT_FILTER_SIZE_MODE;
+};
+
+void save_options(std::ostream& out, const BuildParams& params) {
+    out.write(reinterpret_cast<const char*>(&params.filter_size_mode), sizeof(params.filter_size_mode));
+}
+
+void load_options(std::istream& in, SavedOptions& options) {
+    in.read(reinterpret_cast<char*>(&options.filter_size_mode), sizeof(options.filter_size_mode));
+}
+
+template<typename Index>
+void populate_index(const BuildParams& params) {
     uint64_t num_expected_kmers = params.expected_kmers;
     if (num_expected_kmers == 0) {
         num_expected_kmers = card_estimate(params.fasta_file, params.kmer_size, params.kmer_mode);
     }
-    
+
     const auto start_time = std::chrono::steady_clock::now();
-    kebab::KebabIndex index(params.kmer_size, num_expected_kmers, params.fp_rate, params.hash_funcs, params.kmer_mode);
+
+    Index index(params.kmer_size, num_expected_kmers, params.fp_rate, params.hash_funcs, params.kmer_mode, params.filter_size_mode);
 
     FILE* fp;
     kseq_t* seq = open_fasta(params.fasta_file, &fp);
@@ -128,9 +149,20 @@ void build_index(const BuildParams& params) {
 
     std::cerr << index.get_stats() << std::endl;
 
-    std::ofstream out(params.output_file + index.get_file_extension());
+    std::ofstream out(params.output_file + KEBAB_FILE_SUFFIX);
+    save_options(out, params);
     index.save(out);
 }
+
+void build_index(const BuildParams& params) {
+    if (use_shift_filter(params.filter_size_mode)) {
+        populate_index<kebab::KebabIndex<kebab::ShiftFilter>>(params);
+    } else {
+        populate_index<kebab::KebabIndex<kebab::ModFilter>>(params);
+    }
+}
+
+/* =============================== SCAN =============================== */
 
 struct ScanParams {
     std::string fasta_file;
@@ -141,9 +173,9 @@ struct ScanParams {
     bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS;
 };
 
-void scan_reads(const ScanParams& params) {
-    std::ifstream index_stream(params.index_file);
-    kebab::KebabIndex index(index_stream);
+template<typename Index>
+void process_reads(const ScanParams& params, std::ifstream& index_stream) {
+    Index index(index_stream);
 
     FILE* fp;
     kseq_t* seq = open_fasta(params.fasta_file, &fp);
@@ -178,6 +210,21 @@ void scan_reads(const ScanParams& params) {
     fclose(out);
 }
 
+void scan_reads(const ScanParams& params) {
+    std::ifstream index_stream(params.index_file);
+    
+    SavedOptions options;
+    load_options(index_stream, options);
+    
+    if (use_shift_filter(options.filter_size_mode)) {
+        process_reads<kebab::KebabIndex<kebab::ShiftFilter>>(params, index_stream);
+    } else {
+        process_reads<kebab::KebabIndex<kebab::ModFilter>>(params, index_stream);
+    }
+}
+
+/* =============================== MAIN =============================== */
+
 int main(int argc, char** argv) {
     CLI::App app{"KeBaB: K-mer Based Breaking"};
     app.require_subcommand(1);
@@ -188,6 +235,7 @@ int main(int argc, char** argv) {
     auto build = app.add_subcommand("build", "Build a KeBaB index");
 
     BuildParams build_params;
+    bool no_filter_rounding = false;
 
     build->add_option("fasta", build_params.fasta_file, "Input FASTA file")->required();
     build->add_option("-o,--output", build_params.output_file, "Output prefix for index file, [PREFIX]" + std::string(KEBAB_FILE_SUFFIX))->required();
@@ -211,6 +259,7 @@ int main(int argc, char** argv) {
             {"both", KmerMode::BOTH_STRANDS},
             {"canonical", KmerMode::CANONICAL_ONLY}
         }));
+    build->add_flag("--no-rounding", no_filter_rounding, "Don't round to power of 2 for filter size (slower)");
 
     // SCAN COMMAND
     auto scan = app.add_subcommand("scan", "Breaks sequences into fragments using KeBaB index");
@@ -230,6 +279,9 @@ int main(int argc, char** argv) {
         app.parse(argc, argv);
         
         if (build->parsed()) { 
+            if (no_filter_rounding) {
+                build_params.filter_size_mode = FilterSizeMode::EXACT;
+            }
             build_index(build_params);
         }
         if (scan->parsed()) {
