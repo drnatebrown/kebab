@@ -149,7 +149,7 @@ void populate_index(const BuildParams& params) {
 
     std::cerr << index.get_stats() << std::endl;
 
-    std::ofstream out(params.output_file + FILE_EXTENSION);
+    std::ofstream out(params.output_file + KEBAB_FILE_SUFFIX);
     save_options(out, params);
     index.save(out);
 }
