@@ -16,6 +16,7 @@ enum class FilterSizeMode {
     EXACT
 };
 inline bool use_shift_filter(FilterSizeMode mode) { return mode == FilterSizeMode::NEXT_POWER_OF_TWO || mode == FilterSizeMode::PREVIOUS_POWER_OF_TWO; }
+static constexpr double ROUND_THRESHOLD = 0.10; // 10% tolerance to round to the nearest power of two despite mode
 
 // VERSION
 static constexpr const char* VERSION = "0.2.0";

@@ -140,15 +140,20 @@ private:
             ? optimal_bits(elements, error_rate) 
             : optimal_bits(elements, error_rate, num_hashes);
 
-        switch (filter_size_mode) {
-            case FilterSizeMode::NEXT_POWER_OF_TWO:
-                bits = next_power_of_two(bits);
-                break;
-            case FilterSizeMode::PREVIOUS_POWER_OF_TWO:
-                bits = previous_power_of_two(bits);
-                break;
-            default:
-                break;
+        if (use_shift_filter(filter_size_mode)) {
+            uint64_t next = next_power_of_two(bits);
+            uint64_t prev = previous_power_of_two(bits);
+            // relative position between prev and next, normalized to [0, 1]
+            double relative_position = (bits - prev) / static_cast<double>(prev);
+
+            // if in lower threshold, override to round down
+            if (filter_size_mode == FilterSizeMode::NEXT_POWER_OF_TWO) {
+                bits = (relative_position <= ROUND_THRESHOLD) ? prev : next;
+            } 
+            // if in upper threshold, override to round up
+            else if (filter_size_mode == FilterSizeMode::PREVIOUS_POWER_OF_TWO) {
+                bits = (relative_position >= 1.0 - ROUND_THRESHOLD) ? next : prev;
+            }
         }
 
         set_bits = 0;
