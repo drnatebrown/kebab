@@ -32,6 +32,7 @@ Options:
                               Number of hash functions (otherwise set to minimize index size)
   --kmer-mode ENUM:value in {both->0,canonical->1,forward->2} OR {0,1,2} [1] 
                               K-mer strands to include in the index
+  --no-rounding               Don't round to power of 2 for filter size (slower)
 ```
 Note that a chosen ``-k`` affects which minimum MEM lengths are valid (see below).
 ### Scan
