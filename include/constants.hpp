@@ -17,9 +17,6 @@ enum class FilterSizeMode {
 };
 inline bool use_shift_filter(FilterSizeMode mode) { return mode == FilterSizeMode::NEXT_POWER_OF_TWO || mode == FilterSizeMode::PREVIOUS_POWER_OF_TWO; }
 
-// HIDDEN CONSTANTS
-static constexpr bool DEFAULT_REUSE_FIRST_HASH = true;
-
 // VERSION
 static constexpr const char* VERSION = "0.2.0";
 
