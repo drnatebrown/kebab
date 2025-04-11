@@ -44,6 +44,8 @@ uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMo
     size_t bytes_processed = 0;
 
     kebab::NtHash hasher(kmer_size, use_build_rev_comp(kmer_mode));
+    kebab::NtManyHash rehasher; // Used only for canonical mode to rehash the value
+
     hll::hll_t hll(HLL_SIZE);
 
     int64_t l = 0;
@@ -59,8 +61,7 @@ uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMo
                     hll.add(hasher.hash_rc());
                     break;
                 case KmerMode::CANONICAL_ONLY:
-                    // TODO use nt_hash to rehash instead
-                    hll.addh(hasher.hash_canonical()); // hashes again, since canonical biases estimate lower
+                    hll.add(rehasher(hasher.hash_canonical())); // hashes again, since canonical biases estimate lower
                     break;
             }
             hasher.unsafe_roll();
@@ -113,9 +114,14 @@ void load_options(std::istream& in, SavedOptions& options) {
 
 template<typename Index>
 void populate_index(const BuildParams& params) {
+    uint64_t num_expected_kmers = params.expected_kmers;
+    if (num_expected_kmers == 0) {
+        num_expected_kmers = card_estimate(params.fasta_file, params.kmer_size, params.kmer_mode);
+    }
+
     const auto start_time = std::chrono::steady_clock::now();
 
-    Index index(params.kmer_size, params.expected_kmers, params.fp_rate, params.hash_funcs, params.kmer_mode, params.filter_size_mode);
+    Index index(params.kmer_size, num_expected_kmers, params.fp_rate, params.hash_funcs, params.kmer_mode, params.filter_size_mode);
 
     FILE* fp;
     kseq_t* seq = open_fasta(params.fasta_file, &fp);
@@ -144,20 +150,15 @@ void populate_index(const BuildParams& params) {
     std::cerr << index.get_stats() << std::endl;
 
     std::ofstream out(params.output_file + FILE_EXTENSION);
-    save_params(out, params);
+    save_options(out, params);
     index.save(out);
 }
 
 void build_index(const BuildParams& params) {
-    uint64_t num_expected_kmers = params.expected_kmers;
-    if (num_expected_kmers == 0) {
-        num_expected_kmers = card_estimate(params.fasta_file, params.kmer_size, params.kmer_mode);
-    }
-    
     if (use_shift_filter(params.filter_size_mode)) {
-        populate_index<kebab::ShiftFilter>(params);
+        populate_index<kebab::KebabIndex<kebab::ShiftFilter>>(params);
     } else {
-        populate_index<kebab::ModFilter>(params);
+        populate_index<kebab::KebabIndex<kebab::ModFilter>>(params);
     }
 }
 
@@ -215,10 +216,10 @@ void scan_reads(const ScanParams& params) {
     SavedOptions options;
     load_options(index_stream, options);
     
-    if (options.round_filter_size) {
-        process_reads<kebab::ShiftFilter>(params, index_stream);
+    if (use_shift_filter(options.filter_size_mode)) {
+        process_reads<kebab::KebabIndex<kebab::ShiftFilter>>(params, index_stream);
     } else {
-        process_reads<kebab::ModFilter>(params, index_stream);
+        process_reads<kebab::KebabIndex<kebab::ModFilter>>(params, index_stream);
     }
 }
 
@@ -279,7 +280,7 @@ int main(int argc, char** argv) {
         
         if (build->parsed()) { 
             if (no_filter_rounding) {
-                build_params.round_filter_size = false;
+                build_params.filter_size_mode = FilterSizeMode::EXACT;
             }
             build_index(build_params);
         }

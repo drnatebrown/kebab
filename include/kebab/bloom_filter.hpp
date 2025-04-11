@@ -236,9 +236,9 @@ private:
     }
 
     bool check_bit(uint64_t hash_val) const {
-        word_t* word = get_word(hash_val);
+        word_t word = get_word(hash_val);
         word_t bit_mask = get_bit_mask(hash_val);
-        return *word & bit_mask;
+        return word & bit_mask;
     }
 };
 

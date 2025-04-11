@@ -24,8 +24,13 @@ public:
         x ^= x >> shift;
         return x;
     }
+
+    uint64_t operator()(uint64_t x) const {
+        return operator()(x, seed);
+    }
 private:
     static constexpr uint8_t shift = 27;
+    static constexpr uint64_t seed = 0x90b45d39fb6da1fa;
 };
 
 class MurmurHash2 {
@@ -89,12 +94,20 @@ private:
 template<typename Hash=MultiplyHash, typename Reducer=ShiftReducer>
 class DomainHashFunction {
 public:
+    DomainHashFunction()
+        : hash_(Hash())
+        , reducer_(Reducer(0)) {}
+
     DomainHashFunction(size_t domain_size)
         : hash_(Hash())
         , reducer_(Reducer(domain_size)) {}
 
     uint64_t operator()(uint64_t x, uint64_t seed) const {
         return reducer_(hash_(x, seed));
+    }
+
+    uint64_t hash(uint64_t x, uint64_t seed) const {
+        return hash_(x, seed);
     }
 
     uint64_t reduce(uint64_t hash) const {
