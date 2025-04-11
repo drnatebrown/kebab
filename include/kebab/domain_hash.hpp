@@ -97,6 +97,10 @@ public:
         return reducer_(hash_(x, seed));
     }
 
+    uint64_t reduce(uint64_t hash) const {
+        return reducer_(hash);
+    }
+
 private:
     Hash hash_;
     Reducer reducer_;

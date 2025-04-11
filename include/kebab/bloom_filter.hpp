@@ -55,10 +55,9 @@ inline size_t calculate_num_words(size_t size) {
     return std::ceil(static_cast<double>(size) / BITS_PER_WORD);
 }
 
-template<typename Hash = MultiplyShift>
+template<typename Hash = MultiplyShift, bool REUSE_FIRST_HASH = DEFAULT_REUSE_FIRST_HASH>
 class BloomFilter {
 public:
-
     BloomFilter() : num_elements(0), error_rate(0), bits(0), set_bits(0), filter(), num_hashes(0), hash() {}
 
     BloomFilter(size_t elements, double error_rate = DEFAULT_FP_RATE, size_t num_hashes = DEFAULT_HASH_FUNCS, FilterSizeMode filter_size_mode = DEFAULT_FILTER_SIZE_MODE) {
@@ -66,28 +65,36 @@ public:
     }
 
     void add(uint64_t val) {
-        for (size_t i = 0; i < num_hashes; ++i) {
-            uint64_t hash_val = hash(val, SEEDS[i]);
-            word_t* word = get_word(hash_val);
-            word_t bit_mask = get_bit_mask(hash_val);
-
-            if (!(*word & bit_mask)) {
-                *word |= bit_mask;
-                set_bits++;
+        if constexpr (REUSE_FIRST_HASH) {
+            set_bit(hash.reduce(val));
+            for (size_t i = 1; i < num_hashes; ++i) {
+                set_bit(hash(val, SEEDS[i]));
+            }
+        } else {
+            for (size_t i = 0; i < num_hashes; ++i) {
+                set_bit(hash(val, SEEDS[i]));
             }
         }
     }
 
     bool contains(uint64_t val) const {
-        for (size_t i = 0; i < num_hashes; ++i) {
-            uint64_t hash_val = hash(val, SEEDS[i]);
-            word_t word = get_word(hash_val);
-            word_t bit_mask = get_bit_mask(hash_val);
-
-            if (!(word & bit_mask)) {
+        if constexpr (REUSE_FIRST_HASH) {
+            if (!check_bit(hash.reduce(val))) {
                 return false;
             }
+            for (size_t i = 1; i < num_hashes; ++i) {
+                if (!check_bit(hash(val, SEEDS[i]))) {
+                    return false;
+                }
+            }
+        } else {
+            for (size_t i = 0; i < num_hashes; ++i) {
+                if (!check_bit(hash(val, SEEDS[i]))) {
+                    return false;
+                }
+            }
         }
+
         return true;
     }
 
@@ -216,6 +223,22 @@ private:
 
     static constexpr word_t get_bit_mask(uint64_t hash_val) noexcept {
         return word_t{1} << (hash_val % BITS_PER_WORD);
+    }
+
+    void set_bit(uint64_t hash_val) {
+        word_t* word = get_word(hash_val);
+        word_t bit_mask = get_bit_mask(hash_val);
+
+        if (!(*word & bit_mask)) {
+            *word |= bit_mask;
+            set_bits++;
+        }
+    }
+
+    bool check_bit(uint64_t hash_val) const {
+        word_t* word = get_word(hash_val);
+        word_t bit_mask = get_bit_mask(hash_val);
+        return *word & bit_mask;
     }
 };
 
