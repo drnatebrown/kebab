@@ -18,15 +18,17 @@ Positionals:
 
 Options:
   -h,--help                   Print this help message and exit
-  -o,--output TEXT REQUIRED   Output prefix for .kbb index file
-  -m,--expected-kmers UINT:NONNEGATIVE [0] 
-                              Expected number of k-mers (if not provided, will be estimated)
+  -o,--output TEXT REQUIRED   Output prefix for index file, [PREFIX].kbb
   -k,--kmer-size UINT:POSITIVE [20] 
-                              k-mer size
+                              K-mer size used to populate the index
+  -m,--expected-kmers UINT:NONNEGATIVE [0] 
+                              Expected number of k-mers (otherwise estimated)
   -e,--fp-rate FLOAT:FLOAT in [0 - 1] [0.1] 
-                              False positive rate (between 0 and 1)
+                              Desired false positive rate (between 0 and 1)
   -f,--hash-funcs UINT:POSITIVE
-                              Number of hash functions
+                              Number of hash functions (otherwise set to minimize index size)
+  --kmer-mode ENUM:value in {both->0,canonical->1,forward->2} OR {0,1,2} [1] 
+                              K-mer strands to include in the index
 ```
 ## Scan
 Breaks sequences into fragments using KeBaB index. Fragments use ``[SEQ]:[START]-[END]`` notation where the range is 1-based and inclusive.
@@ -40,10 +42,10 @@ Options:
   -h,--help                   Print this help message and exit
   -i,--index TEXT REQUIRED    KeBaB index file
   -o,--output TEXT REQUIRED   Output FASTA file
-  -s,--sort [0]               Sort fragments
-  -r,--remove-overlaps [0]    Merge overlapping fragments
   -l,--mem-length UINT:POSITIVE [20] 
-                              Minimum MEM length
+                              Minimum MEM length (must be >= k-mer size of index)
+  -s,--sort                   Sort fragments by length
+  -r,--remove-overlaps        Merge overlapping fragments
 ```
 ## Example
 ```
