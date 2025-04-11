@@ -58,6 +58,6 @@ The fragments output by a KeBaB scan can be used with MEM-finding tools such as 
 ```
 ./ropebwt3 mem -l40 ~/data/ropebwt3_index.fmd ~/data/pos_reads.frag.fa > ~/data/pos_reads.frag.mems
 ```
-The ``ropefix.sh`` script removes the fragment notation ``[SEQ]:[START]-[END]`` from ropebwt3's output to use global coordinates.
+The ``ropefix.sh`` script fixes the output to match that of running ropebwt3 alone by rectifying differences due to the fragment notation:
 ```
 ./ropefix.sh ~/data/pos_reads.frag.mems > ~/data/pos_reads.mems
