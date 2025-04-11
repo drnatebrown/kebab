@@ -29,7 +29,7 @@ kseq_t* open_fasta(const std::string& fasta_file, FILE** fp) {
     return kseq_init(fileno(*fp));
 }
 
-uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size) {
+uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMode kmer_mode) {
     const auto start_time = std::chrono::steady_clock::now();
 
     FILE* fp;
@@ -39,15 +39,26 @@ uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size) {
     size_t file_size = std::filesystem::file_size(fasta_file);
     size_t bytes_processed = 0;
 
-    kebab::NtHash hasher(kmer_size);
+    kebab::NtHash hasher(kmer_size, use_build_rev_comp(kmer_mode));
     hll::hll_t hll(HLL_SIZE);
 
     int64_t l = 0;
     while ((l = kseq_read(seq)) >= 0) {
         hasher.set_sequence(seq->seq.s, l);
         for (size_t i = 0; i < static_cast<size_t>(l) - kmer_size + 1; ++i) {
-            hll.add(hasher.hash());
-            // hll.addl(hasher.hash()); <-hashes again
+            switch (kmer_mode) {
+                case KmerMode::FORWARD_ONLY:
+                    hll.add(hasher.hash());
+                    break;
+                case KmerMode::BOTH_STRANDS:
+                    hll.add(hasher.hash());
+                    hll.add(hasher.hash_rc());
+                    break;
+                case KmerMode::CANONICAL_ONLY:
+                    // TODO use nt_hash to rehash instead
+                    hll.addh(hasher.hash_canonical()); // hashes again, since canonical biases estimate lower
+                    break;
+            }
             hasher.unsafe_roll();
         }
 
@@ -79,16 +90,17 @@ struct BuildParams {
     double fp_rate = DEFAULT_FP_RATE;
     uint16_t hash_funcs = DEFAULT_HASH_FUNCS;
     uint64_t expected_kmers = DEFAULT_EXPECTED_KMERS;
+    KmerMode kmer_mode = DEFAULT_KMER_MODE;
 };
 
 void build_index(const BuildParams& params) {
     uint64_t num_expected_kmers = params.expected_kmers;
     if (num_expected_kmers == 0) {
-        num_expected_kmers = card_estimate(params.fasta_file, params.kmer_size);
+        num_expected_kmers = card_estimate(params.fasta_file, params.kmer_size, params.kmer_mode);
     }
     
     const auto start_time = std::chrono::steady_clock::now();
-    kebab::KebabIndex index(params.kmer_size, num_expected_kmers, params.fp_rate, params.hash_funcs);
+    kebab::KebabIndex index(params.kmer_size, num_expected_kmers, params.fp_rate, params.hash_funcs, params.kmer_mode);
 
     FILE* fp;
     kseq_t* seq = open_fasta(params.fasta_file, &fp);
@@ -124,9 +136,9 @@ struct ScanParams {
     std::string fasta_file;
     std::string index_file;
     std::string output_file;
+    uint64_t min_mem_length = DEFAULT_MIN_MEM_LENGTH;
     bool sort_fragments = DEFAULT_SORT_FRAGMENTS;
     bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS;
-    uint64_t min_mem_length = DEFAULT_MIN_MEM_LENGTH;
 };
 
 void scan_reads(const ScanParams& params) {
@@ -178,20 +190,27 @@ int main(int argc, char** argv) {
     BuildParams build_params;
 
     build->add_option("fasta", build_params.fasta_file, "Input FASTA file")->required();
-    build->add_option("-o,--output", build_params.output_file, "Output prefix for .kbb index file")->required();
-    build->add_option("-m,--expected-kmers", build_params.expected_kmers, "Expected number of k-mers (if not provided, will be estimated)")
-        ->check(CLI::NonNegativeNumber)
-        ->default_val(DEFAULT_EXPECTED_KMERS);
-    build->add_option("-k,--kmer-size", build_params.kmer_size, "k-mer size")
+    build->add_option("-o,--output", build_params.output_file, "Output prefix for index file, [PREFIX]" + std::string(KEBAB_FILE_SUFFIX))->required();
+    build->add_option("-k,--kmer-size", build_params.kmer_size, "K-mer size used to populate the index")
         ->default_val(DEFAULT_KMER_SIZE)
         ->check(CLI::PositiveNumber);
-    build->add_option("-e,--fp-rate", build_params.fp_rate, "False positive rate (between 0 and 1)")
+    build->add_option("-m,--expected-kmers", build_params.expected_kmers, "Expected number of k-mers (otherwise estimated)")
+        ->check(CLI::NonNegativeNumber)
+        ->default_val(DEFAULT_EXPECTED_KMERS);
+    build->add_option("-e,--fp-rate", build_params.fp_rate, "Desired false positive rate (between 0 and 1)")
         ->default_val(DEFAULT_FP_RATE)
         ->check(CLI::Range(0.0, 1.0))
         ->type_name("FLOAT");
     // build->add_option("-d,--kmer-freq", kmer_freq, "k-mer sampling rate")->default_val(1);
-    build->add_option("-f,--hash-funcs", build_params.hash_funcs, "Number of hash functions")
+    build->add_option("-f,--hash-funcs", build_params.hash_funcs, "Number of hash functions (otherwise set to minimize index size)")
         ->check(CLI::PositiveNumber);
+    build->add_option("--kmer-mode", build_params.kmer_mode, "K-mer strands to include in the index")
+        ->default_val(DEFAULT_KMER_MODE)
+        ->transform(CLI::CheckedTransformer(std::map<std::string, KmerMode>{
+            {"forward", KmerMode::FORWARD_ONLY},
+            {"both", KmerMode::BOTH_STRANDS},
+            {"canonical", KmerMode::CANONICAL_ONLY}
+        }));
 
     // SCAN COMMAND
     auto scan = app.add_subcommand("scan", "Breaks sequences into fragments using KeBaB index");
@@ -201,16 +220,16 @@ int main(int argc, char** argv) {
     scan->add_option("fasta", scan_params.fasta_file, "Patterns FASTA file")->required();
     scan->add_option("-i,--index", scan_params.index_file, "KeBaB index file")->required();
     scan->add_option("-o,--output", scan_params.output_file, "Output FASTA file")->required();
-    scan->add_flag("-s,--sort", scan_params.sort_fragments, "Sort fragments")->default_val(DEFAULT_SORT_FRAGMENTS);
-    scan->add_flag("-r,--remove-overlaps", scan_params.remove_overlaps, "Merge overlapping fragments")->default_val(DEFAULT_REMOVE_OVERLAPS);
-    scan->add_option("-l,--mem-length", scan_params.min_mem_length, "Minimum MEM length")
+    scan->add_option("-l,--mem-length", scan_params.min_mem_length, "Minimum MEM length (must be >= k-mer size of index)")
         ->default_val(DEFAULT_MIN_MEM_LENGTH)
         ->check(CLI::PositiveNumber);
+    scan->add_flag("-s,--sort", scan_params.sort_fragments, "Sort fragments by length");
+    scan->add_flag("-r,--remove-overlaps", scan_params.remove_overlaps, "Merge overlapping fragments");
 
     try {
         app.parse(argc, argv);
         
-        if (build->parsed()) {
+        if (build->parsed()) { 
             build_index(build_params);
         }
         if (scan->parsed()) {

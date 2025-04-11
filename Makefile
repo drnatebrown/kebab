@@ -5,10 +5,8 @@ CXXFLAGS = -std=c++17 -Wall -Wextra -O3 -march=native -flto \
            -fomit-frame-pointer \
            -DNDEBUG
 LDFLAGS = -flto -Wl,-O3
-# CXXFLAGS = -std=c++17 -Wall -Wextra -O0 -g -fsanitize=address,undefined
-# LDFLAGS = -fsanitize=address,undefined
-# CXXFLAGS = -std=c++17 -Wall -Wextra -O0 -g -pg
-# LDFLAGS = -pg
+CXXFLAGS_DEBUG = -std=c++17 -Wall -Wextra -O0 -g -fsanitize=address,undefined
+LDFLAGS_DEBUG = -fsanitize=address,undefined
 INCLUDES = -I./include
 
 SRC_DIR = src
@@ -28,7 +26,7 @@ DEPS = $(OBJS:.o=.d)
 
 TARGET = kebab
 
-.PHONY: all clean
+.PHONY: all clean debug
 
 all: $(TARGET)
 
@@ -43,3 +41,8 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 
 clean:
 	rm -rf $(OBJ_DIR) $(TARGET)
+
+debug: clean
+debug: CXXFLAGS = $(CXXFLAGS_DEBUG)
+debug: LDFLAGS = $(LDFLAGS_DEBUG)
+debug: all
