@@ -36,7 +36,7 @@ public:
     std::vector<Fragment> scan_read(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS);
 
     std::string get_stats() const;
-
+    
     void save(std::ostream& out) const;
     void load(std::istream& in);
 
