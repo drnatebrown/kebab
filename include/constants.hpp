@@ -9,11 +9,20 @@ enum class KmerMode {
 inline bool use_build_rev_comp(KmerMode mode) { return mode == KmerMode::BOTH_STRANDS || mode == KmerMode::CANONICAL_ONLY; }
 inline bool use_scan_rev_comp(KmerMode mode) { return mode == KmerMode::CANONICAL_ONLY; }
 
+// Filter Size Mode
+enum class FilterSizeMode {
+    NEXT_POWER_OF_TWO,
+    PREVIOUS_POWER_OF_TWO,
+    EXACT
+};
+inline bool use_shift_filter(FilterSizeMode mode) { return mode == FilterSizeMode::NEXT_POWER_OF_TWO || mode == FilterSizeMode::PREVIOUS_POWER_OF_TWO; }
+
 // VERSION
 static constexpr const char* VERSION = "0.2.0";
 
 // I/O
 static constexpr size_t DEFAULT_BUFFER_SIZE = 64ULL * 1024ULL * 1024ULL; // 64MB
+static constexpr const char* FILE_EXTENSION = ".kbb";
 
 // ESTIMATE
 static constexpr uint64_t HLL_SIZE = 20; // 2^20 bytes
@@ -25,7 +34,7 @@ static constexpr uint16_t DEFAULT_HASH_FUNCS = 0;
 static constexpr uint64_t DEFAULT_EXPECTED_KMERS = 0;
 static constexpr KmerMode DEFAULT_KMER_MODE = KmerMode::CANONICAL_ONLY;
 static constexpr bool DEFAULT_REVERSE_COMPLEMENT = true;
-static constexpr bool DEFAULT_ROUND_FILTER_SIZE = true;
+static constexpr FilterSizeMode DEFAULT_FILTER_SIZE_MODE = FilterSizeMode::PREVIOUS_POWER_OF_TWO;
 
 // SCAN
 static constexpr uint64_t DEFAULT_MIN_MEM_LENGTH = 20;

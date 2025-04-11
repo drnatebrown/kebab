@@ -3,60 +3,34 @@
 
 #include <cstdint>
 #include <cmath>
-#include <stdexcept>
-#include <variant>
 
 namespace kebab {
 
 // =============================================
-// Hash and Reducer Types
+// Hash Functions
 // =============================================
 
-enum class HashType {
-    MULTIPLY,
-    MURMUR
-};
-
-enum class ReducerType {
-    SHIFT,
-    MODULO
-};
-
-// =============================================
-// Base Interfaces
-// =============================================
-
-class HashFunction {
+class MultiplyHash {
 public:
-    virtual uint64_t operator()(uint64_t x, uint64_t seed) const = 0;
-};
-
-class DomainReducer {
-public:
-    virtual uint64_t reduce(uint64_t hash) const = 0;
-};
-
-// =============================================
-// Hash Function Implementations
-// =============================================
-
-class MultiplyHash : public HashFunction {
-public:
-    uint64_t operator()(uint64_t x, uint64_t seed) const override {
+    uint64_t operator()(uint64_t x, uint64_t seed) const {
         return x * seed;
     }
 };
 
-class NtManyHash : public HashFunction {
+class NtManyHash {
 public:
-    uint64_t operator()(uint64_t x, uint64_t seed) const override {
-        return x * seed;
+    uint64_t operator()(uint64_t x, uint64_t seed) const {
+        x *= seed;
+        x ^= x >> shift;
+        return x;
     }
+private:
+    static constexpr uint8_t shift = 27;
 };
 
-class MurmurHash2 : public HashFunction {
+class MurmurHash2 {
 public:
-    uint64_t operator()(uint64_t x, uint64_t seed) const override {
+    uint64_t operator()(uint64_t x, uint64_t seed) const {
         uint64_t h = seed ^ (len * m);
         uint64_t k = x;
         
@@ -75,31 +49,33 @@ public:
     }   
 private:
     static constexpr uint64_t m = 0xc6a4a7935bd1e995ULL;
-    static constexpr int r = 47;
-    static constexpr int len = 8;
+    static constexpr uint8_t r = 47;
+    static constexpr uint8_t len = 8;
 };
 
+// AES-NI Hash? TODO
+
 // =============================================
-// Domain Reducer Implementations
+// Domain Reducers
 // =============================================
 
-class ShiftReducer : public DomainReducer {
+class ShiftReducer {
 public:
     explicit ShiftReducer(size_t domain_size) 
         : shift(64 - std::floor(std::log2(domain_size))) {}
     
-    uint64_t reduce(uint64_t hash) const override {
+    uint64_t operator()(uint64_t hash) const {
         return hash >> shift;
     }
 private:
-    uint32_t shift;
+    uint8_t shift;
 };
 
-class ModuloReducer : public DomainReducer {
+class ModuloReducer {
 public:
     explicit ModuloReducer(size_t domain_size) : domain_size(domain_size) {}
     
-    uint64_t reduce(uint64_t hash) const override {
+    uint64_t operator()(uint64_t hash) const {
         return hash % domain_size;
     }
 private:
@@ -118,7 +94,7 @@ public:
         , reducer_(Reducer(domain_size)) {}
 
     uint64_t operator()(uint64_t x, uint64_t seed) const {
-        return reducer_.reduce(hash_(x, seed));
+        return reducer_(hash_(x, seed));
     }
 
 private:
@@ -132,10 +108,11 @@ private:
 
 using MultiplyShift = DomainHashFunction<MultiplyHash, ShiftReducer>;
 using MultiplyMod = DomainHashFunction<MultiplyHash, ModuloReducer>;
+using NtManyShift = DomainHashFunction<NtManyHash, ShiftReducer>;
+using NtManyMod = DomainHashFunction<NtManyHash, ModuloReducer>;
 using MurmurShift = DomainHashFunction<MurmurHash2, ShiftReducer>;
 using MurmurMod = DomainHashFunction<MurmurHash2, ModuloReducer>;
 
-// AES-NI Hash? TODO
 } // namespace kebab
 
 #endif // KEBAB_HASH_HPP

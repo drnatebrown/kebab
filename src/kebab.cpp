@@ -13,6 +13,8 @@
 
 #include "constants.hpp"
 
+/* =============================== UTILITIES =============================== */
+
 KSEQ_INIT(int, read)
 
 kseq_t* open_fasta(const std::string& fasta_file, FILE** fp) {
@@ -28,6 +30,8 @@ kseq_t* open_fasta(const std::string& fasta_file, FILE** fp) {
     }
     return kseq_init(fileno(*fp));
 }
+
+/* =============================== ESTIMATE =============================== */
 
 uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMode kmer_mode) {
     const auto start_time = std::chrono::steady_clock::now();
@@ -82,6 +86,7 @@ uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMo
     return static_cast<uint64_t>(std::ceil(hll.report()));
 }
 
+/* =============================== BUILD =============================== */
 
 struct BuildParams {
     std::string fasta_file;
@@ -91,17 +96,26 @@ struct BuildParams {
     uint16_t hash_funcs = DEFAULT_HASH_FUNCS;
     uint64_t expected_kmers = DEFAULT_EXPECTED_KMERS;
     KmerMode kmer_mode = DEFAULT_KMER_MODE;
-    bool round_filter_size = DEFAULT_ROUND_FILTER_SIZE;
+    FilterSizeMode filter_size_mode = DEFAULT_FILTER_SIZE_MODE;
 };
 
-void build_index(const BuildParams& params) {
-    uint64_t num_expected_kmers = params.expected_kmers;
-    if (num_expected_kmers == 0) {
-        num_expected_kmers = card_estimate(params.fasta_file, params.kmer_size, params.kmer_mode);
-    }
-    
+struct SavedOptions {
+    FilterSizeMode filter_size_mode = DEFAULT_FILTER_SIZE_MODE;
+};
+
+void save_options(std::ostream& out, const BuildParams& params) {
+    out.write(reinterpret_cast<const char*>(&params.filter_size_mode), sizeof(params.filter_size_mode));
+}
+
+void load_options(std::istream& in, SavedOptions& options) {
+    in.read(reinterpret_cast<char*>(&options.filter_size_mode), sizeof(options.filter_size_mode));
+}
+
+template<typename Index>
+void populate_index(const BuildParams& params) {
     const auto start_time = std::chrono::steady_clock::now();
-    kebab::KebabIndex index(params.kmer_size, num_expected_kmers, params.fp_rate, params.hash_funcs, params.kmer_mode);
+
+    Index index(params.kmer_size, params.expected_kmers, params.fp_rate, params.hash_funcs, params.kmer_mode, params.filter_size_mode);
 
     FILE* fp;
     kseq_t* seq = open_fasta(params.fasta_file, &fp);
@@ -129,9 +143,25 @@ void build_index(const BuildParams& params) {
 
     std::cerr << index.get_stats() << std::endl;
 
-    std::ofstream out(params.output_file + index.get_file_extension());
+    std::ofstream out(params.output_file + FILE_EXTENSION);
+    save_params(out, params);
     index.save(out);
 }
+
+void build_index(const BuildParams& params) {
+    uint64_t num_expected_kmers = params.expected_kmers;
+    if (num_expected_kmers == 0) {
+        num_expected_kmers = card_estimate(params.fasta_file, params.kmer_size, params.kmer_mode);
+    }
+    
+    if (use_shift_filter(params.filter_size_mode)) {
+        populate_index<kebab::ShiftFilter>(params);
+    } else {
+        populate_index<kebab::ModFilter>(params);
+    }
+}
+
+/* =============================== SCAN =============================== */
 
 struct ScanParams {
     std::string fasta_file;
@@ -142,9 +172,9 @@ struct ScanParams {
     bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS;
 };
 
-void scan_reads(const ScanParams& params) {
-    std::ifstream index_stream(params.index_file);
-    kebab::KebabIndex index(index_stream);
+template<typename Index>
+void process_reads(const ScanParams& params, std::ifstream& index_stream) {
+    Index index(index_stream);
 
     FILE* fp;
     kseq_t* seq = open_fasta(params.fasta_file, &fp);
@@ -178,6 +208,21 @@ void scan_reads(const ScanParams& params) {
     fclose(fp);
     fclose(out);
 }
+
+void scan_reads(const ScanParams& params) {
+    std::ifstream index_stream(params.index_file);
+    
+    SavedOptions options;
+    load_options(index_stream, options);
+    
+    if (options.round_filter_size) {
+        process_reads<kebab::ShiftFilter>(params, index_stream);
+    } else {
+        process_reads<kebab::ModFilter>(params, index_stream);
+    }
+}
+
+/* =============================== MAIN =============================== */
 
 int main(int argc, char** argv) {
     CLI::App app{"KeBaB: K-mer Based Breaking"};
