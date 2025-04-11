@@ -259,7 +259,7 @@ int main(int argc, char** argv) {
             {"both", KmerMode::BOTH_STRANDS},
             {"canonical", KmerMode::CANONICAL_ONLY}
         }));
-    build->add_flag("--use-exact-size", no_filter_rounding, "Use exact size for bloom filter instead of rounding up to power of 2");
+    build->add_flag("--no-rounding", no_filter_rounding, "Don't round to power of 2 for filter size (slower)");
 
     // SCAN COMMAND
     auto scan = app.add_subcommand("scan", "Breaks sequences into fragments using KeBaB index");
