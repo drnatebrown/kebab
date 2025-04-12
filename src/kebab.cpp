@@ -171,6 +171,7 @@ struct ScanParams {
     uint64_t min_mem_length = DEFAULT_MIN_MEM_LENGTH;
     bool sort_fragments = DEFAULT_SORT_FRAGMENTS;
     bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS;
+    bool prefetch = DEFAULT_PREFETCH;
 };
 
 template<typename Index>
@@ -191,8 +192,9 @@ void process_reads(const ScanParams& params, std::ifstream& index_stream) {
     setvbuf(out, nullptr, _IOFBF, buffer_size);
 
     while ((l = kseq_read(seq)) >= 0) {
-        std::vector<kebab::Fragment> fragments = index.scan_read(seq->seq.s, l, params.min_mem_length, params.remove_overlaps);
-
+        std::vector<kebab::Fragment> fragments = (params.prefetch)
+            ? index.scan_read_prefetch(seq->seq.s, l, params.min_mem_length, params.remove_overlaps) 
+            : index.scan_read(seq->seq.s, l, params.min_mem_length, params.remove_overlaps);
         if (params.sort_fragments) {
             std::sort(fragments.begin(), fragments.end());
         }
@@ -265,6 +267,7 @@ int main(int argc, char** argv) {
     auto scan = app.add_subcommand("scan", "Breaks sequences into fragments using KeBaB index");
 
     ScanParams scan_params;
+    bool no_prefetch = false;
 
     scan->add_option("fasta", scan_params.fasta_file, "Patterns FASTA file")->required();
     scan->add_option("-i,--index", scan_params.index_file, "KeBaB index file")->required();
@@ -274,7 +277,7 @@ int main(int argc, char** argv) {
         ->check(CLI::PositiveNumber);
     scan->add_flag("-s,--sort", scan_params.sort_fragments, "Sort fragments by length");
     scan->add_flag("-r,--remove-overlaps", scan_params.remove_overlaps, "Merge overlapping fragments");
-
+    scan->add_flag("--no-prefetch", no_prefetch, "Don't prefetch k-mers to avoid latency");
     try {
         app.parse(argc, argv);
         
@@ -285,6 +288,9 @@ int main(int argc, char** argv) {
             build_index(build_params);
         }
         if (scan->parsed()) {
+            if (no_prefetch) {
+                scan_params.prefetch = false;
+            }
             scan_reads(scan_params);
         }
 

@@ -78,11 +78,81 @@ std::vector<Fragment> KebabIndex<Filter>::scan_read(const char* seq, size_t len,
 
     // k-mer identified by position of last character
     for (size_t i = k - 1; i < len; ++i) {
-        if (!bf.contains(scan_rev_comp ? scan_hasher.hash_canonical() : scan_hasher.hash())) {
+        if (!bf.contains(scan_hash())) {
             update_fragments(i);
             start = i - k + 2; // i - (k - 1) + 1 -> move to start of k-mer, plus one to move past the offending k-mer
         }
         scan_hasher.unsafe_roll();
+    }
+    update_fragments(len);
+
+    return fragments;
+}
+
+template<typename Filter>
+std::vector<Fragment> KebabIndex<Filter>::scan_read_prefetch(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps) {
+    if (min_mem_length < k) {
+        throw std::invalid_argument("min_mem_length (" + std::to_string(min_mem_length) + ") must be greater than or equal to k (" + std::to_string(k) + ")");
+    }
+
+    // Based on number of hashes to adequately spread out work done when prefetching
+    const size_t NUM_PREFETCH_KMERS = PREFETCH_DISTANCE/bf.get_num_hashes();
+    std::vector<PendingKmer> pending_kmers(NUM_PREFETCH_KMERS, PendingKmer(bf.get_num_hashes()));
+    size_t pending_head = 0;
+    size_t pending_tail = 0;
+    size_t pending_count = 0;
+
+    scan_hasher.set_sequence(seq, len);
+    std::vector<Fragment> fragments;
+
+    size_t start = 0;
+    size_t last_frag_end = 0;
+
+    // end is exclusive
+    auto update_fragments = [&](size_t frag_end) {
+        if (frag_end - start >= min_mem_length) {
+            // Check if overlaps the last fragment
+            if (remove_overlaps && start < last_frag_end) {
+                fragments.back().length += frag_end - last_frag_end;
+            } else {
+                fragments.push_back({start, frag_end - start});
+            }
+            last_frag_end = frag_end;
+        }
+    };
+
+    auto remove_pending_kmer = [&]() {
+        if (!bf.check_prefetch(pending_kmers[pending_head].prefetch_info)) {
+            update_fragments(pending_kmers[pending_head].pos);
+            start = pending_kmers[pending_head].pos - k + 2;
+        }
+        pending_head = (pending_head + 1) % NUM_PREFETCH_KMERS;
+        --pending_count;
+    };
+
+    auto add_pending_kmer = [&](size_t pos) {
+        bf.prefetch_words(scan_hash(), pending_kmers[pending_tail].prefetch_info);
+        pending_kmers[pending_tail].pos = pos;
+        pending_tail = (pending_tail + 1) % NUM_PREFETCH_KMERS;
+        ++pending_count;
+    };
+
+    // Prefetch initial k-mers
+    for (size_t i = k - 1; i < k - 1 + NUM_PREFETCH_KMERS && i < len; ++i) {
+        add_pending_kmer(i);
+        scan_hasher.unsafe_roll();
+    }
+
+    // Check fetched k-mer, prefetch next k-mer
+    for (size_t i = k - 1 + NUM_PREFETCH_KMERS; i < len; ++i) {
+        remove_pending_kmer();
+        add_pending_kmer(i);
+        scan_hasher.unsafe_roll();
+    }
+
+    // Check remaining pending k-mers
+    while (pending_count > 0) {
+        remove_pending_kmer();
     }
     update_fragments(len);
 

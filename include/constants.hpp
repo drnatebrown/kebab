@@ -1,5 +1,12 @@
 #ifndef CONSTANTS_HPP
 #define CONSTANTS_HPP
+// VERSION
+static constexpr const char* VERSION = "0.2.0";
+
+// I/O
+static constexpr size_t DEFAULT_BUFFER_SIZE = 64ULL * 1024ULL * 1024ULL; // 64MB
+static constexpr const char* KEBAB_FILE_SUFFIX = ".kbb";
+
 // K-mer Mode
 enum class KmerMode {
     BOTH_STRANDS,          // Include both forward and reverse complement
@@ -18,15 +25,11 @@ enum class FilterSizeMode {
 inline bool use_shift_filter(FilterSizeMode mode) { return mode == FilterSizeMode::NEXT_POWER_OF_TWO || mode == FilterSizeMode::PREVIOUS_POWER_OF_TWO; }
 static constexpr double ROUND_THRESHOLD = 0.10; // 10% tolerance to round to the nearest power of two despite mode
 
-// VERSION
-static constexpr const char* VERSION = "0.2.0";
-
-// I/O
-static constexpr size_t DEFAULT_BUFFER_SIZE = 64ULL * 1024ULL * 1024ULL; // 64MB
-static constexpr const char* KEBAB_FILE_SUFFIX = ".kbb";
-
 // ESTIMATE
 static constexpr uint64_t HLL_SIZE = 20; // 2^20 bytes
+
+// LATENCY HIDING
+static constexpr uint64_t PREFETCH_DISTANCE = 32; // prefetch this many read operations on the bloom filter
 
 // BUILD
 static constexpr uint16_t DEFAULT_KMER_SIZE = 20;
@@ -41,5 +44,6 @@ static constexpr FilterSizeMode DEFAULT_FILTER_SIZE_MODE = FilterSizeMode::PREVI
 static constexpr uint64_t DEFAULT_MIN_MEM_LENGTH = 20;
 static constexpr bool DEFAULT_SORT_FRAGMENTS = false;
 static constexpr bool DEFAULT_REMOVE_OVERLAPS = false;
+static constexpr bool DEFAULT_PREFETCH = true;
 
 #endif
