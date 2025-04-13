@@ -173,6 +173,7 @@ struct ScanParams {
     bool sort_fragments = DEFAULT_SORT_FRAGMENTS;
     bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS;
     bool prefetch = DEFAULT_PREFETCH;
+    uint16_t threads = DEFAULT_SCAN_THREADS;
 };
 
 template<typename Index>
@@ -206,8 +207,15 @@ void process_reads(const ScanParams& params, std::ifstream& index_stream) {
             {
                 seq_len = kseq_read(seq);
                 if (seq_len >= 0) {
-                    seq_name = strdup(seq->name.s);
-                    seq_content = strdup(seq->seq.s);
+                    if (params.threads > 1) {
+                        seq_name = strdup(seq->name.s);
+                        seq_content = strdup(seq->seq.s);
+                    }
+                    // avoid extra copy for single thread
+                    else {
+                        seq_name = seq->name.s;
+                        seq_content = seq->seq.s;
+                    }
                 }
             }
             
@@ -232,8 +240,10 @@ void process_reads(const ScanParams& params, std::ifstream& index_stream) {
                 }
             }
         }
-        free(seq_name);
-        free(seq_content);
+        if (params.threads > 1) {
+            free(seq_name);
+            free(seq_content);
+        }
     }
 
     kseq_destroy(seq);
@@ -297,7 +307,7 @@ int main(int argc, char** argv) {
 
     ScanParams scan_params;
     bool no_prefetch = false;
-    uint16_t scan_threads = (DEFAULT_PREFETCH) ? omp_get_num_procs() : omp_get_max_threads();
+    scan_params.threads = (DEFAULT_PREFETCH) ? omp_get_num_procs() : omp_get_max_threads();
 
     scan->add_option("fasta", scan_params.fasta_file, "Patterns FASTA file")->required();
     scan->add_option("-i,--index", scan_params.index_file, "KeBaB index file")->required();
@@ -307,8 +317,8 @@ int main(int argc, char** argv) {
         ->check(CLI::PositiveNumber);
     scan->add_flag("-s,--sort", scan_params.sort_fragments, "Sort fragments by length");
     scan->add_flag("-r,--remove-overlaps", scan_params.remove_overlaps, "Merge overlapping fragments");
-    scan->add_option("-t,--threads", scan_threads, "Number of threads to use")
-        ->default_val(scan_threads)
+    scan->add_option("-t,--threads", scan_params.threads, "Number of threads to use")
+        ->default_val(scan_params.threads)
         ->check(CLI::PositiveNumber);
     scan->add_flag("--no-prefetch", no_prefetch, "Don't prefetch k-mers to avoid latency");
 
@@ -324,9 +334,9 @@ int main(int argc, char** argv) {
         if (scan->parsed()) {
             if (no_prefetch) {
                 scan_params.prefetch = false;
-                scan_threads = omp_get_max_threads();
+                scan_params.threads = omp_get_max_threads();
             }
-            omp_set_num_threads(scan_threads);
+            omp_set_num_threads(scan_params.threads);
             scan_reads(scan_params);
         }
 
