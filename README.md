@@ -51,6 +51,7 @@ Options:
                               Minimum MEM length (must be >= k-mer size of index)
   -s,--sort                   Sort fragments by length
   -r,--remove-overlaps        Merge overlapping fragments
+  --no-prefetch               Don't prefetch k-mers to avoid latency
 ```
 To ensure fragments support early stopping (e.g., top t-MEMs), use -s and **do not use** -r.
 ## Example Usage
