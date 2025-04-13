@@ -334,7 +334,7 @@ int main(int argc, char** argv) {
         if (scan->parsed()) {
             if (no_prefetch) {
                 scan_params.prefetch = false;
-                scan_params.threads = omp_get_max_threads();
+                scan_params.threads = (scan->count("--threads") > 0) ? scan_params.threads : omp_get_max_threads();
             }
             omp_set_num_threads(scan_params.threads);
             scan_reads(scan_params);
