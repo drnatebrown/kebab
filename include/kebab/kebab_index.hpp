@@ -33,8 +33,7 @@ public:
     size_t get_k() const { return k; }
 
     void add_sequence(const char* seq, size_t len);
-    std::vector<Fragment> scan_read(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS);
-    std::vector<Fragment> scan_read_prefetch(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS);
+    std::vector<Fragment> scan_read(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS, bool prefetch = DEFAULT_PREFETCH);
     std::string get_stats() const;
     
     void save(std::ostream& out) const;
@@ -45,8 +44,6 @@ private:
     KmerMode kmer_mode;
     bool build_rev_comp;
     bool scan_rev_comp;
-    // NtHash<> build_hasher;
-    // NtHash<> scan_hasher;
     Filter bf;
 
     struct PendingKmer {
@@ -55,6 +52,9 @@ private:
 
         PendingKmer(size_t num_hashes) : prefetch_info(num_hashes), pos(0) {}
     };
+
+    std::vector<Fragment> scan_read(const char* seq, size_t len, NtHash<>& scan_hasher, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS);
+    std::vector<Fragment> scan_read_prefetch(const char* seq, size_t len, NtHash<>& scan_hasher, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS);
 
     uint64_t scan_hash(const NtHash<>& hasher) const {
         return (scan_rev_comp) ? hasher.hash_canonical() : hasher.hash();

@@ -45,5 +45,6 @@ static constexpr uint64_t DEFAULT_MIN_MEM_LENGTH = 20;
 static constexpr bool DEFAULT_SORT_FRAGMENTS = false;
 static constexpr bool DEFAULT_REMOVE_OVERLAPS = false;
 static constexpr bool DEFAULT_PREFETCH = true;
+// static constexpr uint16_t DEFAULT_SCAN_THREADS = 16;
 
 #endif
