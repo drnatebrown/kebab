@@ -45,8 +45,8 @@ private:
     KmerMode kmer_mode;
     bool build_rev_comp;
     bool scan_rev_comp;
-    NtHash<> build_hasher;
-    NtHash<> scan_hasher;
+    // NtHash<> build_hasher;
+    // NtHash<> scan_hasher;
     Filter bf;
 
     struct PendingKmer {
@@ -56,8 +56,8 @@ private:
         PendingKmer(size_t num_hashes) : prefetch_info(num_hashes), pos(0) {}
     };
 
-    uint64_t scan_hash() const {
-        return (scan_rev_comp) ? scan_hasher.hash_canonical() : scan_hasher.hash();
+    uint64_t scan_hash(const NtHash<>& hasher) const {
+        return (scan_rev_comp) ? hasher.hash_canonical() : hasher.hash();
     }
 };
 

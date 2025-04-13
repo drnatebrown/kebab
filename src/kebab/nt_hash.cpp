@@ -114,6 +114,7 @@ NtHash<T>::NtHash(size_t k, bool rev_comp) noexcept
     , rol_k_map{}
     , rol_k_map_rc{}
 {
+    std::lock_guard<std::mutex> lock(init_mutex);
     init_rol_k_map();
     init_rol_k_map_rc();
 }
@@ -161,12 +162,12 @@ void NtHash<T>::unsafe_roll() noexcept {
     uint8_t incoming = static_cast<uint8_t>(seq[pos + k]);
     
     hash_val = rol(hash_val, 1);
-    hash_val ^= rol_k_map[outgoing];
+    hash_val ^= (*rol_k_map)[outgoing];
     hash_val ^= NtMap<T>::map[incoming];
 
     if (rev_comp) {
         hash_val_rc ^= NtMap<T>::map_rc[outgoing];
-        hash_val_rc ^= rol_k_map_rc[incoming];
+        hash_val_rc ^= (*rol_k_map_rc)[incoming];
         hash_val_rc = ror(hash_val_rc, 1);
     }
     
@@ -174,27 +175,62 @@ void NtHash<T>::unsafe_roll() noexcept {
 }
 
 template<typename T>
+std::mutex NtHash<T>::init_mutex;
+template<typename T>
+std::unordered_map<size_t, std::array<T, 256>> NtHash<T>::cached_rol_k_map;
+template<typename T>
+std::unordered_map<size_t, std::array<T, 256>> NtHash<T>::cached_rol_k_map_rc;
+
+template<typename T>
 void NtHash<T>::init_rol_k_map() noexcept {
-    rol_k_map['A'] = rol(NtMap<T>::map['A'], k);
-    rol_k_map['C'] = rol(NtMap<T>::map['C'], k);
-    rol_k_map['G'] = rol(NtMap<T>::map['G'], k);
-    rol_k_map['T'] = rol(NtMap<T>::map['T'], k);
-    rol_k_map['a'] = rol_k_map['A'];
-    rol_k_map['c'] = rol_k_map['C'];
-    rol_k_map['g'] = rol_k_map['G'];
-    rol_k_map['t'] = rol_k_map['T'];
+    if (k == 0) {
+        return;
+    }
+    auto maps = cached_rol_k_map.find(k);
+    if (maps != cached_rol_k_map.end()) {
+        rol_k_map = &(maps->second);
+        return;
+    }
+    else {
+        std::array<T, 256> new_rol_k_map = {};
+        new_rol_k_map['A'] = rol(NtMap<T>::map['A'], k);
+        new_rol_k_map['C'] = rol(NtMap<T>::map['C'], k);
+        new_rol_k_map['G'] = rol(NtMap<T>::map['G'], k);
+        new_rol_k_map['T'] = rol(NtMap<T>::map['T'], k);
+        new_rol_k_map['a'] = new_rol_k_map['A'];
+        new_rol_k_map['c'] = new_rol_k_map['C'];
+        new_rol_k_map['g'] = new_rol_k_map['G'];
+        new_rol_k_map['t'] = new_rol_k_map['T'];
+
+        cached_rol_k_map[k] = std::move(new_rol_k_map);
+        rol_k_map = &(cached_rol_k_map[k]);
+    }
 }
 
 template<typename T>
 void NtHash<T>::init_rol_k_map_rc() noexcept {
-    rol_k_map_rc['A'] = rol(NtMap<T>::map_rc['A'], k);
-    rol_k_map_rc['C'] = rol(NtMap<T>::map_rc['C'], k);
-    rol_k_map_rc['G'] = rol(NtMap<T>::map_rc['G'], k);
-    rol_k_map_rc['T'] = rol(NtMap<T>::map_rc['T'], k);
-    rol_k_map_rc['a'] = rol_k_map_rc['A'];
-    rol_k_map_rc['c'] = rol_k_map_rc['C'];
-    rol_k_map_rc['g'] = rol_k_map_rc['G'];
-    rol_k_map_rc['t'] = rol_k_map_rc['T'];
+    if (k == 0) {
+        return;
+    }
+    auto maps = cached_rol_k_map_rc.find(k);
+    if (maps != cached_rol_k_map_rc.end()) {
+        rol_k_map_rc = &(maps->second);
+        return;
+    }
+    else {
+        std::array<T, 256> new_rol_k_map_rc = {};
+        new_rol_k_map_rc['A'] = rol(NtMap<T>::map_rc['A'], k);
+        new_rol_k_map_rc['C'] = rol(NtMap<T>::map_rc['C'], k);
+        new_rol_k_map_rc['G'] = rol(NtMap<T>::map_rc['G'], k);
+        new_rol_k_map_rc['T'] = rol(NtMap<T>::map_rc['T'], k);
+        new_rol_k_map_rc['a'] = new_rol_k_map_rc['A'];
+        new_rol_k_map_rc['c'] = new_rol_k_map_rc['C'];
+        new_rol_k_map_rc['g'] = new_rol_k_map_rc['G'];
+        new_rol_k_map_rc['t'] = new_rol_k_map_rc['T'];
+
+        cached_rol_k_map_rc[k] = std::move(new_rol_k_map_rc);
+        rol_k_map_rc = &(cached_rol_k_map_rc[k]);
+    }
 }
 
 template<typename T>

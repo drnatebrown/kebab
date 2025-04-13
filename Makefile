@@ -1,12 +1,13 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -O3 -march=native -flto \
+           -fopenmp \
            -ffast-math \
            -funroll-loops \
            -fomit-frame-pointer \
            -DNDEBUG
-LDFLAGS = -flto -Wl,-O3
-CXXFLAGS_DEBUG = -std=c++17 -Wall -Wextra -O0 -g -fsanitize=address,undefined
-LDFLAGS_DEBUG = -fsanitize=address,undefined
+LDFLAGS = -flto -Wl,-O3 -fopenmp
+CXXFLAGS_DEBUG = -std=c++17 -Wall -Wextra -O0 -g -fsanitize=address,undefined -fopenmp
+LDFLAGS_DEBUG = -fsanitize=address,undefined -fopenmp
 INCLUDES = -I./include
 
 SRC_DIR = src

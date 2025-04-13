@@ -8,8 +8,6 @@ KebabIndex<Filter>::KebabIndex(size_t k, size_t expected_kmers, double fp_rate, 
     , kmer_mode(kmer_mode)
     , build_rev_comp(use_build_rev_comp(kmer_mode))
     , scan_rev_comp(use_scan_rev_comp(kmer_mode))
-    , build_hasher(k, build_rev_comp)
-    , scan_hasher(k, scan_rev_comp)
     , bf(expected_kmers, fp_rate, num_hashes, filter_size_mode)
 {
 }
@@ -20,8 +18,6 @@ KebabIndex<Filter>::KebabIndex(std::istream& in)
     , kmer_mode(DEFAULT_KMER_MODE)
     , build_rev_comp(use_build_rev_comp(kmer_mode))
     , scan_rev_comp(use_scan_rev_comp(kmer_mode))
-    , build_hasher(0, build_rev_comp)
-    , scan_hasher(0, scan_rev_comp)
     , bf()
 {
     load(in);
@@ -29,6 +25,8 @@ KebabIndex<Filter>::KebabIndex(std::istream& in)
 
 template<typename Filter>
 void KebabIndex<Filter>::add_sequence(const char* seq, size_t len) {
+    NtHash<> build_hasher(k, build_rev_comp);
+
     build_hasher.set_sequence(seq, len);
     for (size_t i = 0; i < len - k + 1; ++i) {
         switch (kmer_mode) {
@@ -52,6 +50,8 @@ void KebabIndex<Filter>::add_sequence(const char* seq, size_t len) {
 
 template<typename Filter>
 std::vector<Fragment> KebabIndex<Filter>::scan_read(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps) {
+    NtHash<> scan_hasher(k, scan_rev_comp);
+
     if (min_mem_length < k) {
         throw std::invalid_argument("min_mem_length (" + std::to_string(min_mem_length) + ") must be greater than or equal to k (" + std::to_string(k) + ")");
     }
@@ -76,13 +76,18 @@ std::vector<Fragment> KebabIndex<Filter>::scan_read(const char* seq, size_t len,
         }
     };
 
-    // k-mer identified by position of last character
-    for (size_t i = k - 1; i < len; ++i) {
-        if (!bf.contains(scan_hash())) {
-            update_fragments(i);
-            start = i - k + 2; // i - (k - 1) + 1 -> move to start of k-mer, plus one to move past the offending k-mer
+    auto check_kmer = [&](size_t pos) {
+        if (!bf.contains(scan_hash(scan_hasher))) {
+            update_fragments(pos);
+            start = pos - k + 2; // pos - (k - 1) + 1 -> move to start of k-mer, plus one to move past the offending k-mer
         }
+    };
+
+    // k-mer identified by position of last character
+    check_kmer(k - 1); // first doesn't need to be rolled
+    for (size_t i = k; i < len; ++i) {
         scan_hasher.unsafe_roll();
+        check_kmer(i);
     }
     update_fragments(len);
 
@@ -91,6 +96,8 @@ std::vector<Fragment> KebabIndex<Filter>::scan_read(const char* seq, size_t len,
 
 template<typename Filter>
 std::vector<Fragment> KebabIndex<Filter>::scan_read_prefetch(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps) {
+    NtHash<> scan_hasher(k, scan_rev_comp);
+
     if (min_mem_length < k) {
         throw std::invalid_argument("min_mem_length (" + std::to_string(min_mem_length) + ") must be greater than or equal to k (" + std::to_string(k) + ")");
     }
@@ -131,23 +138,24 @@ std::vector<Fragment> KebabIndex<Filter>::scan_read_prefetch(const char* seq, si
     };
 
     auto add_pending_kmer = [&](size_t pos) {
-        bf.prefetch_words(scan_hash(), pending_kmers[pending_tail].prefetch_info);
+        bf.prefetch_words(scan_hash(scan_hasher), pending_kmers[pending_tail].prefetch_info);
         pending_kmers[pending_tail].pos = pos;
         pending_tail = (pending_tail + 1) % NUM_PREFETCH_KMERS;
         ++pending_count;
     };
 
     // Prefetch initial k-mers
-    for (size_t i = k - 1; i < k - 1 + NUM_PREFETCH_KMERS && i < len; ++i) {
-        add_pending_kmer(i);
+    add_pending_kmer(k - 1); // first doesn't need to be rolled
+    for (size_t i = k; i < k - 1 + NUM_PREFETCH_KMERS && i < len; ++i) {
         scan_hasher.unsafe_roll();
+        add_pending_kmer(i);
     }
 
     // Check fetched k-mer, prefetch next k-mer
     for (size_t i = k - 1 + NUM_PREFETCH_KMERS; i < len; ++i) {
+        scan_hasher.unsafe_roll();
         remove_pending_kmer();
         add_pending_kmer(i);
-        scan_hasher.unsafe_roll();
     }
 
     // Check remaining pending k-mers
@@ -178,8 +186,8 @@ void KebabIndex<Filter>::load(std::istream& in) {
     in.read(reinterpret_cast<char*>(&kmer_mode), sizeof(kmer_mode));
     build_rev_comp = use_build_rev_comp(kmer_mode);
     scan_rev_comp = use_scan_rev_comp(kmer_mode);
-    build_hasher = NtHash<>(k, build_rev_comp);
-    scan_hasher = NtHash<>(k, scan_rev_comp);
+    // build_hasher = NtHash<>(k, build_rev_comp);
+    // scan_hasher = NtHash<>(k, scan_rev_comp);
     bf.load(in);
 }
 

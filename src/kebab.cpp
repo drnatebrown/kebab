@@ -3,6 +3,8 @@
 #include <fstream>
 #include <unistd.h>
 #include <chrono>
+#include <mutex>
+#include <omp.h>
 
 #include "external/kseq.h"
 #include "external/CLI11.hpp"
@@ -180,7 +182,6 @@ void process_reads(const ScanParams& params, std::ifstream& index_stream) {
 
     FILE* fp;
     kseq_t* seq = open_fasta(params.fasta_file, &fp);
-    int64_t l = 0;
 
     // For maximum performance, use system buffer size
     FILE* out = fopen(params.output_file.c_str(), "w");
@@ -191,20 +192,51 @@ void process_reads(const ScanParams& params, std::ifstream& index_stream) {
     }
     setvbuf(out, nullptr, _IOFBF, buffer_size);
 
-    while ((l = kseq_read(seq)) >= 0) {
-        std::vector<kebab::Fragment> fragments = (params.prefetch)
-            ? index.scan_read_prefetch(seq->seq.s, l, params.min_mem_length, params.remove_overlaps) 
-            : index.scan_read(seq->seq.s, l, params.min_mem_length, params.remove_overlaps);
-        if (params.sort_fragments) {
-            std::sort(fragments.begin(), fragments.end());
+    // Create a thread pool with OMP
+    #pragma omp parallel
+    {
+        // Thread-local variables for processing
+        char* seq_name;
+        char* seq_content;
+        int64_t seq_len = 0;
+        std::vector<kebab::Fragment> fragments;
+        
+        while (true) {
+            // Critical I/O read
+            #pragma omp critical(read_seq)
+            {
+                seq_len = kseq_read(seq);
+                if (seq_len >= 0) {
+                    seq_name = strdup(seq->name.s);
+                    seq_content = strdup(seq->seq.s);
+                }
+            }
+            
+            if (seq_len < 0) {
+                break;
+            }
+            
+            fragments.clear();
+            fragments = (params.prefetch)
+                ? index.scan_read_prefetch(seq_content, seq_len, params.min_mem_length, params.remove_overlaps) 
+                : index.scan_read(seq_content, seq_len, params.min_mem_length, params.remove_overlaps);
+            
+            if (params.sort_fragments) {
+                std::sort(fragments.begin(), fragments.end());
+            }
+            
+            #pragma omp critical(write_fragments)
+            {
+                for (const auto& fragment : fragments) {
+                    // use 1-based inclusive
+                    fprintf(out, ">%s:%zu-%zu\n", seq_name, fragment.start + 1, fragment.start + fragment.length);
+                    fwrite(seq_content + fragment.start, 1, fragment.length, out);
+                    fputc('\n', out);
+                }
+            }
         }
-
-        for (const auto& fragment : fragments) {
-            // use 1-based inclusive
-            fprintf(out, ">%s:%zu-%zu\n", seq->name.s, fragment.start + 1, fragment.start + fragment.length);
-            fwrite(seq->seq.s + fragment.start, 1, fragment.length, out);
-            fputc('\n', out);
-        }
+        free(seq_name);
+        free(seq_content);
     }
 
     kseq_destroy(seq);
@@ -268,6 +300,7 @@ int main(int argc, char** argv) {
 
     ScanParams scan_params;
     bool no_prefetch = false;
+    int num_threads = omp_get_max_threads();
 
     scan->add_option("fasta", scan_params.fasta_file, "Patterns FASTA file")->required();
     scan->add_option("-i,--index", scan_params.index_file, "KeBaB index file")->required();
@@ -278,6 +311,9 @@ int main(int argc, char** argv) {
     scan->add_flag("-s,--sort", scan_params.sort_fragments, "Sort fragments by length");
     scan->add_flag("-r,--remove-overlaps", scan_params.remove_overlaps, "Merge overlapping fragments");
     scan->add_flag("--no-prefetch", no_prefetch, "Don't prefetch k-mers to avoid latency");
+    scan->add_option("-t,--threads", num_threads, "Number of threads to use")
+        ->default_val(omp_get_max_threads())
+        ->check(CLI::PositiveNumber);
     try {
         app.parse(argc, argv);
         
@@ -291,6 +327,7 @@ int main(int argc, char** argv) {
             if (no_prefetch) {
                 scan_params.prefetch = false;
             }
+            omp_set_num_threads(num_threads);
             scan_reads(scan_params);
         }
 

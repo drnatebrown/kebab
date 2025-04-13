@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <climits>
 #include <algorithm>
+#include <mutex>
+#include <unordered_map>
 #include "constants.hpp"
 
 namespace kebab {
@@ -40,8 +42,12 @@ private:
     T hash_val;
     T hash_val_rc;
 
-    T rol_k_map[256];
-    T rol_k_map_rc[256];
+    static std::mutex init_mutex;
+    static std::unordered_map<size_t, std::array<T, 256>> cached_rol_k_map;
+    static std::unordered_map<size_t, std::array<T, 256>> cached_rol_k_map_rc;
+
+    std::array<T, 256>* rol_k_map;
+    std::array<T, 256>* rol_k_map_rc;
     void init_rol_k_map() noexcept;
     void init_rol_k_map_rc() noexcept;
 
