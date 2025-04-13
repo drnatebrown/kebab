@@ -3,7 +3,6 @@
 #include <fstream>
 #include <unistd.h>
 #include <chrono>
-#include <mutex>
 #include <omp.h>
 
 #include "external/kseq.h"
