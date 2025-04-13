@@ -34,7 +34,7 @@ public:
 
     void add_sequence(const char* seq, size_t len);
     std::vector<Fragment> scan_read(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS);
-
+    std::vector<Fragment> scan_read_prefetch(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS);
     std::string get_stats() const;
     
     void save(std::ostream& out) const;
@@ -48,6 +48,17 @@ private:
     NtHash<> build_hasher;
     NtHash<> scan_hasher;
     Filter bf;
+
+    struct PendingKmer {
+        PrefetchInfo prefetch_info;
+        size_t pos;
+
+        PendingKmer(size_t num_hashes) : prefetch_info(num_hashes), pos(0) {}
+    };
+
+    uint64_t scan_hash() const {
+        return (scan_rev_comp) ? scan_hasher.hash_canonical() : scan_hasher.hash();
+    }
 };
 
 } // namespace kebab

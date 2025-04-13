@@ -12,6 +12,8 @@
 
 #include "kebab/domain_hash.hpp"
 
+#define L1_PREFETCH(address) __builtin_prefetch(address, 0, 3)
+
 namespace {
 
 // Supports at most 32 hash functions
@@ -55,6 +57,13 @@ inline size_t calculate_num_words(size_t size) {
     return std::ceil(static_cast<double>(size) / BITS_PER_WORD);
 }
 
+struct PrefetchInfo {
+    std::vector<uint64_t> hash_vals;
+    std::vector<const word_t*> words;
+
+    PrefetchInfo(size_t num_hashes) : hash_vals(num_hashes), words(num_hashes) {}
+};
+
 template<typename Hash = MultiplyShift>
 class BloomFilter {
 public:
@@ -88,6 +97,29 @@ public:
             }
         }
         return true;
+    }
+
+    void prefetch_words(uint64_t val, PrefetchInfo& info) {
+        // Compute hash values, store words for later access, and issue prefetches all in one loop
+        for (size_t i = 0; i < num_hashes; ++i) {
+            info.hash_vals[i] = hash(val, SEEDS[i]);
+            info.words[i] = get_word_fetch(info.hash_vals[i]);
+            L1_PREFETCH(info.words[i]);
+        }
+    }
+
+    bool check_prefetch(const PrefetchInfo& info) const {
+        for (size_t i = 0; i < num_hashes; ++i) {
+            word_t bit_mask = get_bit_mask(info.hash_vals[i]);
+            if (!(*info.words[i] & bit_mask)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    size_t get_num_hashes() const {
+        return num_hashes;
     }
 
     std::string get_stats() const {
@@ -211,6 +243,10 @@ private:
     }
 
     word_t* get_word(uint64_t hash_val) noexcept {
+        return &filter[hash_val / BITS_PER_WORD];
+    }
+
+    const word_t* get_word_fetch(uint64_t hash_val) const noexcept {
         return &filter[hash_val / BITS_PER_WORD];
     }
 
