@@ -73,3 +73,15 @@ The fragments output by a KeBaB scan can be used with MEM-finding tools such as 
 To verify correctness, ``ropefix.sh`` fixes output to match that of running ropebwt3 alone, removing any fragment based notation:
 ```
 ./ropefix.sh ~/data/reads.frag.mems > ~/data/reads.mems
+```
+
+## Thirdparty
+
+KeBaB utilizes the following third-party libraries:
+
+* [kseq.h](https://lh3lh3.users.sourceforge.net/kseq.shtml) - FASTA parser
+* [CLI11](https://github.com/CLIUtils/CLI11) - Command line parser
+* [hll](https://github.com/mindis/hll) - HyperLogLog implementation (add GitHub link)
+
+The k-mer hash implementation is based on the original codebase/paper of [ntHash](https://github.com/bcgsc/ntHash).
+
