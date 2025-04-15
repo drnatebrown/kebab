@@ -30,7 +30,7 @@ Options:
                               Desired false positive rate (between 0 and 1)
   -f,--hash-funcs UINT:POSITIVE
                               Number of hash functions (otherwise set to minimize index size)
-  -t,--threads UINT:POSITIVE [48] 
+  -t,--threads UINT:POSITIVE [8] 
                               Number of threads to use
   --kmer-mode ENUM:value in {both->0,canonical->1,forward->2} OR {0,1,2} [1] 
                               K-mer strands to include in the index
