@@ -7,6 +7,7 @@
 #include <climits>
 #include <cmath>
 #include <iostream>
+#include <omp.h>
 
 #include "constants.hpp"
 
@@ -79,8 +80,15 @@ public:
             word_t* word = get_word(hash_val);
             word_t bit_mask = get_bit_mask(hash_val);
 
-            if (!(*word & bit_mask)) {
+            // Ensure that word is updated atomically for thread safety
+            word_t old_val;
+            #pragma omp atomic capture
+            {
+                old_val = *word;
                 *word |= bit_mask;
+            }
+            if (!(old_val & bit_mask)) {
+                #pragma omp atomic
                 set_bits++;
             }
         }
