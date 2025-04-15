@@ -1,3 +1,5 @@
+/* Implemented from the paper/codebase of https://github.com/bcgsc/ntHash */
+
 #ifndef NTHASH_H
 #define NTHASH_H
 

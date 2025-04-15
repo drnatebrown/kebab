@@ -30,6 +30,8 @@ Options:
                               Desired false positive rate (between 0 and 1)
   -f,--hash-funcs UINT:POSITIVE
                               Number of hash functions (otherwise set to minimize index size)
+  -t,--threads UINT:POSITIVE [8] 
+                              Number of threads to use
   --kmer-mode ENUM:value in {both->0,canonical->1,forward->2} OR {0,1,2} [1] 
                               K-mer strands to include in the index
   --no-rounding               Don't round to power of 2 for filter size (slower)
@@ -51,6 +53,8 @@ Options:
                               Minimum MEM length (must be >= k-mer size of index)
   -s,--sort                   Sort fragments by length
   -r,--remove-overlaps        Merge overlapping fragments
+  -t,--threads UINT:POSITIVE [8] 
+                              Number of threads to use
   --no-prefetch               Don't prefetch k-mers to avoid latency
 ```
 To ensure fragments support early stopping (e.g., top t-MEMs), use -s and **do not use** -r.
