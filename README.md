@@ -1,7 +1,7 @@
 # KeBaB
 _**K**-m**e**r **Ba**sed **B**reaking for finding maximal exact matches._
 
-Breaks patterns into fragments, removing sequence content which cannot overlap any maximal exact match (MEM) of some minimum length.
+Breaks nucleotide DNA patterns into fragments, removing sequence content which cannot overlap any maximal exact match (MEM) of some minimum length.
 
 ## How-to
 ### Compile
