@@ -1,3 +1,4 @@
+/* Implemented from the paper/codebase of https://github.com/bcgsc/ntHash */
 #include "kebab/nt_hash.hpp"
 
 namespace {
