@@ -157,11 +157,11 @@ struct BuildParams {
     std::string fasta_file;
     std::string output_file;
     uint16_t kmer_size = DEFAULT_KMER_SIZE;
+    KmerMode kmer_mode = DEFAULT_KMER_MODE;
     double fp_rate = DEFAULT_FP_RATE;
     uint16_t hash_funcs = DEFAULT_HASH_FUNCS;
     uint64_t expected_kmers = DEFAULT_EXPECTED_KMERS;
     uint16_t threads = DEFAULT_BUILD_THREADS;
-    KmerMode kmer_mode = DEFAULT_KMER_MODE;
     FilterSizeMode filter_size_mode = DEFAULT_FILTER_SIZE_MODE;
 };
 
@@ -322,9 +322,15 @@ int main(int argc, char** argv) {
     build->add_option("-k,--kmer-size", build_params.kmer_size, "K-mer size used to populate the index")
         ->default_val(DEFAULT_KMER_SIZE)
         ->check(CLI::PositiveNumber);
+    build->add_option("--kmer-mode", build_params.kmer_mode, "K-mer strands to include in the index")
+        ->default_val(DEFAULT_KMER_MODE)
+        ->transform(CLI::CheckedTransformer(std::map<std::string, KmerMode>{
+            {"forward", KmerMode::FORWARD_ONLY},
+            {"both", KmerMode::BOTH_STRANDS},
+            {"canonical", KmerMode::CANONICAL_ONLY}
+        }));
     build->add_option("-m,--expected-kmers", build_params.expected_kmers, "Expected number of k-mers (otherwise estimated)")
-        ->check(CLI::NonNegativeNumber)
-        ->default_val(DEFAULT_EXPECTED_KMERS);
+        ->check(CLI::NonNegativeNumber);
     build->add_option("-e,--fp-rate", build_params.fp_rate, "Desired false positive rate (between 0 and 1)")
         ->default_val(DEFAULT_FP_RATE)
         ->check(CLI::Range(0.0, 1.0))
@@ -335,13 +341,6 @@ int main(int argc, char** argv) {
     build->add_option("-t,--threads", build_params.threads, "Number of threads to use")
         ->default_val(build_params.threads)
         ->check(CLI::PositiveNumber);
-    build->add_option("--kmer-mode", build_params.kmer_mode, "K-mer strands to include in the index")
-        ->default_val(DEFAULT_KMER_MODE)
-        ->transform(CLI::CheckedTransformer(std::map<std::string, KmerMode>{
-            {"forward", KmerMode::FORWARD_ONLY},
-            {"both", KmerMode::BOTH_STRANDS},
-            {"canonical", KmerMode::CANONICAL_ONLY}
-        }));
     build->add_flag("--no-rounding", no_filter_rounding, "Don't round to power of 2 for filter size (slower)");
 
     // SCAN COMMAND

@@ -24,7 +24,9 @@ Options:
   -o,--output TEXT REQUIRED   Output prefix for index file, [PREFIX].kbb
   -k,--kmer-size UINT:POSITIVE [20] 
                               K-mer size used to populate the index
-  -m,--expected-kmers UINT:NONNEGATIVE [0] 
+  --kmer-mode ENUM:value in {both->0,canonical->1,forward->2} OR {0,1,2} [1] 
+                              K-mer strands to include in the index
+  -m,--expected-kmers UINT:NONNEGATIVE
                               Expected number of k-mers (otherwise estimated)
   -e,--fp-rate FLOAT:FLOAT in [0 - 1] [0.1] 
                               Desired false positive rate (between 0 and 1)
@@ -32,8 +34,6 @@ Options:
                               Number of hash functions (otherwise set to minimize index size)
   -t,--threads UINT:POSITIVE [8] 
                               Number of threads to use
-  --kmer-mode ENUM:value in {both->0,canonical->1,forward->2} OR {0,1,2} [1] 
-                              K-mer strands to include in the index
   --no-rounding               Don't round to power of 2 for filter size (slower)
 ```
 Note that a chosen ``-k`` affects which minimum MEM lengths are valid (see below).

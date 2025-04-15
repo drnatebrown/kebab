@@ -34,11 +34,11 @@ static constexpr uint64_t PREFETCH_DISTANCE = 32; // prefetch this many read ope
 
 // BUILD
 static constexpr uint16_t DEFAULT_KMER_SIZE = 20;
+static constexpr KmerMode DEFAULT_KMER_MODE = KmerMode::CANONICAL_ONLY;
 static constexpr double DEFAULT_FP_RATE = 0.1;
 static constexpr uint16_t DEFAULT_HASH_FUNCS = 0;
 static constexpr uint64_t DEFAULT_EXPECTED_KMERS = 0;
 static constexpr uint16_t DEFAULT_BUILD_THREADS = 8; // overridden by call to omp_get_max_threads()
-static constexpr KmerMode DEFAULT_KMER_MODE = KmerMode::CANONICAL_ONLY;
 static constexpr FilterSizeMode DEFAULT_FILTER_SIZE_MODE = FilterSizeMode::PREVIOUS_POWER_OF_TWO;
 
 // SCAN
