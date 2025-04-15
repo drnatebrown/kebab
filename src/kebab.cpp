@@ -97,13 +97,11 @@ uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMo
                 add_kmer();
             }
 
-            #pragma omp critical(update_progress)
-            {
-                bytes_processed += seq_len + seq_name_len + seq_comment_len + 2;  // header, seq, and newlines
-                std::cerr << "\rEstimating Cardinality: " 
-                          << std::fixed << std::setprecision(2) << std::setw(6) 
-                          << (bytes_processed * 100.0 / file_size) << "%" << std::flush;
-            }
+            #pragma omp atomic
+            bytes_processed += seq_len + seq_name_len + seq_comment_len + 2;  // header, seq, and newlines
+            std::cerr << "\rEstimating Cardinality: " 
+                        << std::fixed << std::setprecision(2) << std::setw(6) 
+                        << (bytes_processed * 100.0 / file_size) << "%" << std::flush;
         }
 
         if (threads > 1) {
@@ -198,13 +196,11 @@ void populate_index(const BuildParams& params) {
             
             index.add_sequence(seq_content, seq_len);
 
-            #pragma omp critical(update_progress)
-            {
-                bytes_processed += seq_len + seq_name_len + seq_comment_len + 2;  // seq, header, comment, and newlines
-                std::cerr << "\rIndexing: " 
-                        << std::fixed << std::setprecision(2) << std::setw(6) 
-                        << (bytes_processed * 100.0 / file_size) << "%" << std::flush;
-            }
+            #pragma omp atomic
+            bytes_processed += seq_len + seq_name_len + seq_comment_len + 2;  // seq, header, comment, and newlines
+            std::cerr << "\rIndexing: " 
+                      << std::fixed << std::setprecision(2) << std::setw(6) 
+                      << (bytes_processed * 100.0 / file_size) << "%" << std::flush;
         }
         if (params.threads > 1) {
             free(seq_content);
