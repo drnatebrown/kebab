@@ -125,11 +125,13 @@ uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMo
             add_kmer();
         }
 
-        #pragma omp atomic
-        bytes_processed += bytes_read(seq_info);
-        std::cerr << "\rEstimating Cardinality: " 
+        #pragma omp critical(update_progress)
+        {
+            bytes_processed += bytes_read(seq_info);
+            std::cerr << "\rEstimating Cardinality: " 
                     << std::fixed << std::setprecision(2) << std::setw(6) 
                     << (bytes_processed * 100.0 / file_size) << "%" << std::flush;
+        }
     };
 
     process_sequences(seq, threads, cardinality_step);
@@ -196,11 +198,13 @@ void populate_index(const BuildParams& params) {
     auto add_sequence_step = [&](const SeqInfo& seq_info) {
         index.add_sequence(seq_info.seq_content, seq_info.seq_len);
 
-        #pragma omp atomic
-        bytes_processed += bytes_read(seq_info);
-        std::cerr << "\rIndexing: " 
+        #pragma omp critical(update_progress)
+        {
+            bytes_processed += bytes_read(seq_info);
+            std::cerr << "\rIndexing: " 
                     << std::fixed << std::setprecision(2) << std::setw(6) 
                     << (bytes_processed * 100.0 / file_size) << "%" << std::flush;
+        }
     };
 
     process_sequences(seq, params.threads, add_sequence_step);
