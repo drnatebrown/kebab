@@ -1,7 +1,7 @@
 ![Image](https://github.com/user-attachments/assets/ee9725a5-2b51-4459-95de-1f7e7ea88809)  
 _**K**-m**e**r **Ba**sed **B**reaking for finding maximal exact matches._
   
-**KeBaB** breaks nucleotide DNA patterns into fragments, filtering out subsequences which cannot overlap any maximal exact match (MEM) given a minimum match length, resulting in faster MEM-finding queries.
+**KeBaB** breaks nucleotide DNA patterns into fragments, filtering out subsequences which cannot overlap any maximal exact match (MEM) of some minimum match length, resulting in faster MEM-finding queries.
 
 ## How-to
 ### Compile
