@@ -81,7 +81,7 @@ KeBaB utilizes the following third-party libraries:
 
 * [kseq.h](https://lh3lh3.users.sourceforge.net/kseq.shtml) - FASTA parser
 * [CLI11](https://github.com/CLIUtils/CLI11) - Command line parser
-* [hll](https://github.com/mindis/hll) - HyperLogLog implementation (add GitHub link)
+* [hll](https://github.com/mindis/hll) - HyperLogLog implementation
 
 The k-mer hash implementation is based on the original codebase/paper of [ntHash](https://github.com/bcgsc/ntHash).
 
