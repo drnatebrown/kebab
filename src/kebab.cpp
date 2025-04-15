@@ -32,6 +32,57 @@ kseq_t* open_fasta(const std::string& fasta_file, FILE** fp) {
     return kseq_init(fileno(*fp));
 }
 
+// Stores sequence information for multi-threaded processing
+struct SeqInfo {
+    char* seq_content;
+    char* seq_name;
+    int64_t seq_len;
+    int64_t seq_name_len;
+    int64_t seq_comment_len;
+};
+
+template<typename ProcessFunc>
+void process_sequences(kseq_t* seq, uint16_t threads, ProcessFunc process_func) {
+    #pragma omp parallel
+    {
+        SeqInfo seq_info;
+        while (true) {
+            #pragma omp critical(read_seq)
+            {
+                seq_info.seq_len = kseq_read(seq);
+                if (seq_info.seq_len >= 0) {
+                    if (threads > 1) {
+                        seq_info.seq_content = strdup(seq->seq.s);
+                        seq_info.seq_name = strdup(seq->name.s);  // Copy name for multi-threaded
+                    } 
+                    // avoid extra copy for single thread
+                    else {
+                        seq_info.seq_content = seq->seq.s;
+                        seq_info.seq_name = seq->name.s;
+                    }
+                    seq_info.seq_name_len = seq->name.l;
+                    seq_info.seq_comment_len = seq->comment.l;
+                }
+            }
+            if (seq_info.seq_len <= 0) {
+                break;
+            }
+
+            process_func(seq_info);
+        }
+
+        if (threads > 1) {
+            free(seq_info.seq_content);
+            free(seq_info.seq_name);
+        }
+    }
+}
+
+size_t bytes_read(const SeqInfo& seq_info) {
+    // seq, header, comment, and newlines
+    return seq_info.seq_len + seq_info.seq_name_len + seq_info.seq_comment_len + 2;
+}
+
 /* =============================== ESTIMATE =============================== */
 
 uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMode kmer_mode, uint16_t threads) {
@@ -48,68 +99,44 @@ uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMo
 
     hll::hll_t hll(HLL_SIZE);
 
-    #pragma omp parallel
-    {
-        kebab::NtHash hasher(kmer_size, use_build_rev_comp(kmer_mode));
-        char* seq_content;
-        int64_t seq_len = 0;
-        int64_t seq_name_len = 0;
-        int64_t seq_comment_len = 0;
-        while (true) {
-            #pragma omp critical(read_seq)
-            {
-                seq_len = kseq_read(seq);
-                if (seq_len >= 0) {
-                    if (threads > 1) {
-                        seq_content = strdup(seq->seq.s);
-                    }
-                    // avoid extra copy for single thread
-                    else {
-                        seq_content = seq->seq.s;
-                    }
-                    seq_name_len = seq->name.l;
-                    seq_comment_len = seq->comment.l;
-                }
-            }
-            if (seq_len <= 0) {
-                break;
-            }
+    auto cardinality_step = [&](const SeqInfo& seq_info) {
+        thread_local static kebab::NtHash hasher(kmer_size, use_build_rev_comp(kmer_mode));
 
-            auto add_kmer = [&]() {
-                switch (kmer_mode) {
-                    case KmerMode::FORWARD_ONLY:
-                        hll.add(hasher.hash());
-                        break;
-                    case KmerMode::BOTH_STRANDS:
-                        hll.add(hasher.hash());
-                        hll.add(hasher.hash_rc());
-                        break;
-                    case KmerMode::CANONICAL_ONLY:
-                        hll.add(rehasher(hasher.hash_canonical())); // hashes again, since canonical biases estimate lower
-                        break;
-                }
-            };
+        auto add_kmer = [&]() {
+            switch (kmer_mode) {
+                case KmerMode::FORWARD_ONLY:
+                    hll.add(hasher.hash());
+                    break;
+                case KmerMode::BOTH_STRANDS:
+                    hll.add(hasher.hash());
+                    hll.add(hasher.hash_rc());
+                    break;
+                case KmerMode::CANONICAL_ONLY:
+                    // hashes again, since canonical biases estimate lower
+                    hll.add(rehasher(hasher.hash_canonical()));
+                    break;
+            }
+        };
 
-            hasher.set_sequence(seq_content, seq_len);
+        hasher.set_sequence(seq_info.seq_content, seq_info.seq_len);
+        add_kmer();
+        for (size_t i = 1; i < static_cast<size_t>(seq_info.seq_len) - kmer_size + 1; ++i) {
+            hasher.unsafe_roll();
             add_kmer();
-            for (size_t i = 1; i < static_cast<size_t>(seq_len) - kmer_size + 1; ++i) {
-                hasher.unsafe_roll();
-                add_kmer();
-            }
+        }
 
-            #pragma omp atomic
-            bytes_processed += seq_len + seq_name_len + seq_comment_len + 2;  // header, seq, and newlines
+        #pragma omp critical(update_progress)
+        {
+            bytes_processed += bytes_read(seq_info);
             std::cerr << "\rEstimating Cardinality: " 
-                        << std::fixed << std::setprecision(2) << std::setw(6) 
-                        << (bytes_processed * 100.0 / file_size) << "%" << std::flush;
+                    << std::fixed << std::setprecision(2) << std::setw(6) 
+                    << (bytes_processed * 100.0 / file_size) << "%" << std::flush;
         }
+    };
 
-        if (threads > 1) {
-            free(seq_content);
-        }
-    }
-
+    process_sequences(seq, threads, cardinality_step);
     const auto end_time = std::chrono::steady_clock::now();
+
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);   
     std::cerr << "\rEstimating Cardinality: 100.00% [" << std::fixed << std::setprecision(2) 
               << (elapsed.count() / 1000.0) << "s]" << std::endl;
@@ -168,44 +195,19 @@ void populate_index(const BuildParams& params) {
     size_t file_size = std::filesystem::file_size(params.fasta_file);
     size_t bytes_processed = 0;
 
-    #pragma omp parallel
-    {
-        char* seq_content;
-        int64_t seq_len = 0;
-        int64_t seq_name_len = 0;
-        int64_t seq_comment_len = 0;
-        while (true) {
-            #pragma omp critical(read_seq)
-            {
-                seq_len = kseq_read(seq);
-                if (seq_len >= 0) {
-                    if (params.threads > 1) {
-                        seq_content = strdup(seq->seq.s);
-                    }
-                    // avoid extra copy for single thread
-                    else {
-                        seq_content = seq->seq.s;
-                    }
-                    seq_name_len = seq->name.l;
-                    seq_comment_len = seq->comment.l;
-                }
-            }
-            if (seq_len <= 0) {
-                break;
-            }
-            
-            index.add_sequence(seq_content, seq_len);
+    auto add_sequence_step = [&](const SeqInfo& seq_info) {
+        index.add_sequence(seq_info.seq_content, seq_info.seq_len);
 
-            #pragma omp atomic
-            bytes_processed += seq_len + seq_name_len + seq_comment_len + 2;  // seq, header, comment, and newlines
+        #pragma omp critical(update_progress)
+        {
+            bytes_processed += bytes_read(seq_info);
             std::cerr << "\rIndexing: " 
-                      << std::fixed << std::setprecision(2) << std::setw(6) 
-                      << (bytes_processed * 100.0 / file_size) << "%" << std::flush;
+                    << std::fixed << std::setprecision(2) << std::setw(6) 
+                    << (bytes_processed * 100.0 / file_size) << "%" << std::flush;
         }
-        if (params.threads > 1) {
-            free(seq_content);
-        }
-    }
+    };
+
+    process_sequences(seq, params.threads, add_sequence_step);
 
     const auto end_time = std::chrono::steady_clock::now();
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -244,7 +246,7 @@ struct ScanParams {
 };
 
 template<typename Index>
-void process_reads(const ScanParams& params, std::ifstream& index_stream) {
+void filter_reads(const ScanParams& params, std::ifstream& index_stream) {
     Index index(index_stream);
 
     FILE* fp;
@@ -259,58 +261,28 @@ void process_reads(const ScanParams& params, std::ifstream& index_stream) {
     }
     setvbuf(out, nullptr, _IOFBF, buffer_size);
 
-    // Create a thread pool with OMP
-    #pragma omp parallel
-    {
-        // Thread-local variables for processing
-        char* seq_name;
-        char* seq_content;
-        int64_t seq_len = 0;
-        std::vector<kebab::Fragment> fragments;
+    auto filter_read_step = [&](const SeqInfo& seq_info) {
+        thread_local static std::vector<kebab::Fragment> fragments;
+
+        fragments.clear();
+        fragments = index.scan_read(seq_info.seq_content, seq_info.seq_len, params.min_mem_length, params.remove_overlaps, params.prefetch);
         
-        while (true) {
-            // Critical I/O read
-            #pragma omp critical(read_seq)
-            {
-                seq_len = kseq_read(seq);
-                if (seq_len >= 0) {
-                    if (params.threads > 1) {
-                        seq_name = strdup(seq->name.s);
-                        seq_content = strdup(seq->seq.s);
-                    }
-                    // avoid extra copy for single thread
-                    else {
-                        seq_name = seq->name.s;
-                        seq_content = seq->seq.s;
-                    }
-                }
-            }
-            if (seq_len <= 0) {
-                break;
-            }
-            
-            fragments.clear();
-            fragments = index.scan_read(seq_content, seq_len, params.min_mem_length, params.remove_overlaps, params.prefetch);
-            
-            if (params.sort_fragments) {
-                std::sort(fragments.begin(), fragments.end());
-            }
-            
-            #pragma omp critical(write_fragments)
-            {
-                for (const auto& fragment : fragments) {
-                    // use 1-based inclusive
-                    fprintf(out, ">%s:%zu-%zu\n", seq_name, fragment.start + 1, fragment.start + fragment.length);
-                    fwrite(seq_content + fragment.start, 1, fragment.length, out);
-                    fputc('\n', out);
-                }
+        if (params.sort_fragments) {
+            std::sort(fragments.begin(), fragments.end());
+        }
+        
+        #pragma omp critical(write_fragments)
+        {
+            for (const auto& fragment : fragments) {
+                // use 1-based inclusive
+                fprintf(out, ">%s:%zu-%zu\n", seq_info.seq_name, fragment.start + 1, fragment.start + fragment.length);
+                fwrite(seq_info.seq_content + fragment.start, 1, fragment.length, out);
+                fputc('\n', out);
             }
         }
-        if (params.threads > 1) {
-            free(seq_name);
-            free(seq_content);
-        }
-    }
+    };
+
+    process_sequences(seq, params.threads, filter_read_step);
 
     kseq_destroy(seq);
     fclose(fp);
@@ -324,9 +296,9 @@ void scan_reads(const ScanParams& params) {
     load_options(index_stream, options);
     
     if (use_shift_filter(options.filter_size_mode)) {
-        process_reads<kebab::KebabIndex<kebab::ShiftFilter>>(params, index_stream);
+        filter_reads<kebab::KebabIndex<kebab::ShiftFilter>>(params, index_stream);
     } else {
-        process_reads<kebab::KebabIndex<kebab::ModFilter>>(params, index_stream);
+        filter_reads<kebab::KebabIndex<kebab::ModFilter>>(params, index_stream);
     }
 }
 
