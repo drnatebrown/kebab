@@ -360,7 +360,7 @@ int main(int argc, char** argv) {
     scan->add_option("-t,--threads", scan_params.threads, "Number of threads to use")
         ->default_val(scan_params.threads)
         ->check(CLI::PositiveNumber);
-    scan->add_option("-p,--prefetch-distance", scan_params.prefetch_distance, "Number of read operations to prefetch")
+    scan->add_option("-p,--prefetch-distance", scan_params.prefetch_distance, "Number of filter operations to prefetch ahead")
         ->default_val(DEFAULT_PREFETCH_DISTANCE)
         ->check(CLI::NonNegativeNumber);
 
