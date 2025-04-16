@@ -7,8 +7,8 @@ _**K**-m**e**r **Ba**sed **B**reaking for finding maximal exact matches._
 ### Compile
 Creates `./kebab` executable:
 ```
-git clone https://github.com/drnatebrown/KeBaB.git
-cd KeBaB
+git clone https://github.com/drnatebrown/kebab.git
+cd kebab
 make
 ```
 ### Build
