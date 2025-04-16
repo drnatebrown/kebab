@@ -347,7 +347,7 @@ int main(int argc, char** argv) {
     auto scan = app.add_subcommand("scan", "Breaks sequences into fragments using KeBaB index");
 
     ScanParams scan_params;
-    scan_params.threads = (DEFAULT_PREFETCH) ? omp_get_num_procs() : omp_get_max_threads();
+    scan_params.threads = (DEFAULT_PREFETCH_DISTANCE > 0) ? omp_get_num_procs() : omp_get_max_threads();
 
     scan->add_option("fasta", scan_params.fasta_file, "Patterns FASTA file")->required();
     scan->add_option("-i,--index", scan_params.index_file, "KeBaB index file")->required();
@@ -360,7 +360,7 @@ int main(int argc, char** argv) {
     scan->add_option("-t,--threads", scan_params.threads, "Number of threads to use")
         ->default_val(scan_params.threads)
         ->check(CLI::PositiveNumber);
-    scan->add_option("-p,--prefetch-distance", scan_params.prefetch_distance, "Number of filter operations to prefetch ahead")
+    scan->add_option("-p,--prefetch-distance", scan_params.prefetch_distance, "Number of filter operations to prefetch ahead (0 to disable)")
         ->default_val(DEFAULT_PREFETCH_DISTANCE)
         ->check(CLI::NonNegativeNumber);
 
