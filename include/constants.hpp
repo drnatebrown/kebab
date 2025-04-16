@@ -29,9 +29,6 @@ static constexpr double ROUND_THRESHOLD = 0.10; // 10% tolerance to round to the
 // ESTIMATE
 static constexpr uint64_t HLL_SIZE = 20; // 2^20 bytes
 
-// LATENCY HIDING
-static constexpr uint64_t PREFETCH_DISTANCE = 32; // prefetch this many read operations on the bloom filter
-
 // BUILD
 static constexpr uint16_t DEFAULT_KMER_SIZE = 20;
 static constexpr KmerMode DEFAULT_KMER_MODE = KmerMode::CANONICAL_ONLY;
@@ -45,7 +42,7 @@ static constexpr FilterSizeMode DEFAULT_FILTER_SIZE_MODE = FilterSizeMode::PREVI
 static constexpr uint64_t DEFAULT_MIN_MEM_LENGTH = 20;
 static constexpr bool DEFAULT_SORT_FRAGMENTS = false;
 static constexpr bool DEFAULT_REMOVE_OVERLAPS = false;
-static constexpr bool DEFAULT_PREFETCH = true;
+static constexpr uint16_t DEFAULT_PREFETCH_DISTANCE = 16; // prefetch this many read operations on the bloom filter
 static constexpr uint16_t DEFAULT_SCAN_THREADS = 8; // overridden by call to omp_get_max_threads()
 
 #endif

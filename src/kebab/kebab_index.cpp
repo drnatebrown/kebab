@@ -49,11 +49,11 @@ void KebabIndex<Filter>::add_sequence(const char* seq, size_t len) {
 }
 
 template<typename Filter>
-std::vector<Fragment> KebabIndex<Filter>::scan_read(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps, bool prefetch) {
+std::vector<Fragment> KebabIndex<Filter>::scan_read(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps, uint16_t prefetch_distance) {
     thread_local static NtHash<> scan_hasher(k, scan_rev_comp);
 
-    if (prefetch) {
-        return scan_read_prefetch(seq, len, scan_hasher, min_mem_length, remove_overlaps);
+    if (prefetch_distance > 0) {
+        return scan_read_prefetch(seq, len, scan_hasher, min_mem_length, remove_overlaps, prefetch_distance);
     }
     else {
         return scan_read(seq, len, scan_hasher, min_mem_length, remove_overlaps);
@@ -105,13 +105,13 @@ std::vector<Fragment> KebabIndex<Filter>::scan_read(const char* seq, size_t len,
 }
 
 template<typename Filter>
-std::vector<Fragment> KebabIndex<Filter>::scan_read_prefetch(const char* seq, size_t len, NtHash<>& scan_hasher, uint64_t min_mem_length, bool remove_overlaps) {
+std::vector<Fragment> KebabIndex<Filter>::scan_read_prefetch(const char* seq, size_t len, NtHash<>& scan_hasher, uint64_t min_mem_length, bool remove_overlaps, uint16_t prefetch_distance) {
     if (min_mem_length < k) {
         throw std::invalid_argument("min_mem_length (" + std::to_string(min_mem_length) + ") must be greater than or equal to k (" + std::to_string(k) + ")");
     }
 
     // Based on number of hashes to adequately spread out work done when prefetching
-    const size_t NUM_PREFETCH_KMERS = PREFETCH_DISTANCE/bf.get_num_hashes();
+    const size_t NUM_PREFETCH_KMERS = prefetch_distance/bf.get_num_hashes();
     std::vector<PendingKmer> pending_kmers(NUM_PREFETCH_KMERS, PendingKmer(bf.get_num_hashes()));
     size_t pending_head = 0;
     size_t pending_tail = 0;

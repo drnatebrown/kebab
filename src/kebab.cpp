@@ -241,7 +241,7 @@ struct ScanParams {
     uint64_t min_mem_length = DEFAULT_MIN_MEM_LENGTH;
     bool sort_fragments = DEFAULT_SORT_FRAGMENTS;
     bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS;
-    bool prefetch = DEFAULT_PREFETCH;
+    uint16_t prefetch_distance = DEFAULT_PREFETCH_DISTANCE;
     uint16_t threads = DEFAULT_SCAN_THREADS;
 };
 
@@ -265,7 +265,7 @@ void filter_reads(const ScanParams& params, std::ifstream& index_stream) {
         thread_local static std::vector<kebab::Fragment> fragments;
 
         fragments.clear();
-        fragments = index.scan_read(seq_info.seq_content, seq_info.seq_len, params.min_mem_length, params.remove_overlaps, params.prefetch);
+        fragments = index.scan_read(seq_info.seq_content, seq_info.seq_len, params.min_mem_length, params.remove_overlaps, params.prefetch_distance);
         
         if (params.sort_fragments) {
             std::sort(fragments.begin(), fragments.end());
@@ -347,7 +347,6 @@ int main(int argc, char** argv) {
     auto scan = app.add_subcommand("scan", "Breaks sequences into fragments using KeBaB index");
 
     ScanParams scan_params;
-    bool no_prefetch = false;
     scan_params.threads = (DEFAULT_PREFETCH) ? omp_get_num_procs() : omp_get_max_threads();
 
     scan->add_option("fasta", scan_params.fasta_file, "Patterns FASTA file")->required();
@@ -361,7 +360,9 @@ int main(int argc, char** argv) {
     scan->add_option("-t,--threads", scan_params.threads, "Number of threads to use")
         ->default_val(scan_params.threads)
         ->check(CLI::PositiveNumber);
-    scan->add_flag("--no-prefetch", no_prefetch, "Don't prefetch k-mers to avoid latency");
+    scan->add_option("-p,--prefetch-distance", scan_params.prefetch_distance, "Number of read operations to prefetch")
+        ->default_val(DEFAULT_PREFETCH_DISTANCE)
+        ->check(CLI::NonNegativeNumber);
 
     try {
         app.parse(argc, argv);
@@ -374,8 +375,7 @@ int main(int argc, char** argv) {
             build_index(build_params);
         }
         if (scan->parsed()) {
-            if (no_prefetch) {
-                scan_params.prefetch = false;
+            if (scan_params.prefetch_distance == 0) {
                 scan_params.threads = (scan->count("--threads") > 0) ? scan_params.threads : omp_get_max_threads();
             }
             omp_set_num_threads(scan_params.threads);

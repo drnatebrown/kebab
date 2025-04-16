@@ -33,7 +33,7 @@ public:
     size_t get_k() const { return k; }
 
     void add_sequence(const char* seq, size_t len);
-    std::vector<Fragment> scan_read(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS, bool prefetch = DEFAULT_PREFETCH);
+    std::vector<Fragment> scan_read(const char* seq, size_t len, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS, uint16_t prefetch_distance = DEFAULT_PREFETCH_DISTANCE);
     std::string get_stats() const;
     
     void save(std::ostream& out) const;
@@ -54,7 +54,7 @@ private:
     };
 
     std::vector<Fragment> scan_read(const char* seq, size_t len, NtHash<>& scan_hasher, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS);
-    std::vector<Fragment> scan_read_prefetch(const char* seq, size_t len, NtHash<>& scan_hasher, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS);
+    std::vector<Fragment> scan_read_prefetch(const char* seq, size_t len, NtHash<>& scan_hasher, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS, uint16_t prefetch_distance = DEFAULT_PREFETCH_DISTANCE);
 
     uint64_t scan_hash(const NtHash<>& hasher) const {
         return (scan_rev_comp) ? hasher.hash_canonical() : hasher.hash();
