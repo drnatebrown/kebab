@@ -27,9 +27,9 @@ DEPS = $(OBJS:.o=.d)
 
 TARGET = kebab
 
-.PHONY: all clean debug
+.PHONY: all clean debug ropefix
 
-all: $(TARGET)
+all: $(TARGET) ropefix
 
 $(TARGET): $(OBJS)
 	$(CXX) $(OBJS) $(LDFLAGS) -o $@
@@ -38,10 +38,13 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -MMD -MP -c $< -o $@
 
+ropefix: ropefix.c
+	gcc -O3 -o ropefix ropefix.c
+
 -include $(DEPS)
 
 clean:
-	rm -rf $(OBJ_DIR) $(TARGET)
+	rm -rf $(OBJ_DIR) $(TARGET) ropefix
 
 debug: clean
 debug: CXXFLAGS = $(CXXFLAGS_DEBUG)

@@ -70,9 +70,9 @@ The fragments output by a KeBaB scan can be used with MEM-finding tools such as 
 ```
 ./ropebwt3 mem -l 40 ~/data/ropebwt3_index.fmd ~/data/reads.frag.fa > ~/data/reads.frag.mems
 ```
-To verify correctness, ``ropefix.sh`` fixes output to match that of running ropebwt3 alone, removing any fragment based notation:
+To verify correctness, ``ropefix`` fixes output to match that of running ropebwt3 alone, removing any fragment based notation:
 ```
-./ropefix.sh ~/data/reads.frag.mems > ~/data/reads.mems
+./ropefix ~/data/reads.frag.mems > ~/data/reads.mems
 ```
 
 ## Thirdparty
