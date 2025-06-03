@@ -50,7 +50,7 @@ Options:
   -i,--index TEXT REQUIRED    KeBaB index file
   -o,--output TEXT REQUIRED   Output FASTA file
   -l,--mem-length UINT:POSITIVE [20] 
-                              Minimum MEM length (must be >= k-mer size of index)
+                              Minimum MEM length (must be > k-mer size of index)
   -s,--sort                   Sort fragments by length
   -r,--remove-overlaps        Merge overlapping fragments
   -t,--threads UINT:POSITIVE [8] 
