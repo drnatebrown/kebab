@@ -237,16 +237,16 @@ private:
 
     void validate_params() const {
         if (this->error_rate <= 0 || this->error_rate >= 1) {
-            throw std::invalid_argument("Error rate must be between 0 and 1, not " + std::to_string(this->error_rate));
+            throw std::invalid_argument("Desired false positive rate (" + std::to_string(this->error_rate) + ") must be between 0 and 1");
         }
         if (this->num_elements == 0) {
-            throw std::invalid_argument("Estimated number of elements must be greater than 0, not " + std::to_string(this->num_elements));
+            throw std::invalid_argument("Estimated number of elements (" + std::to_string(this->num_elements) + ") must be greater than 0");
         }
     }
 
     void validate_num_hashes() const {
-        if (this->num_hashes >= std::size(SEEDS)) {
-            throw std::invalid_argument("Number of hashes must be less than the number of seeds (" + std::to_string(std::size(SEEDS)) + "), not " + std::to_string(this->num_hashes));
+        if (this->num_hashes > std::size(SEEDS)) {
+            throw std::invalid_argument("Number of hashes (" + std::to_string(this->num_hashes) + ") must be less than the number of seeds (" + std::to_string(std::size(SEEDS)) + ")");
         }
     }
 
