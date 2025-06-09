@@ -51,7 +51,7 @@ Options:
   -h,--help                   Print this help message and exit
   -i,--index TEXT REQUIRED    KeBaB index file
   -o,--output TEXT REQUIRED   Output FASTA file
-  -l,--mem-length UINT:POSITIVE [20] 
+  -l,--mem-length UINT:POSITIVE [25] 
                               Minimum MEM length (must be > k-mer size of index)
   -s,--sort                   Sort fragments by length
   -r,--remove-overlaps        Merge overlapping fragments
