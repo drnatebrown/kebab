@@ -2,8 +2,9 @@
 _**K**-m**e**r **Ba**sed **B**reaking for finding long maximal exact matches._  
 _(Release Version 1.0.0)_
   
-**KeBaB** breaks nucleotide DNA patterns into pseudo-MEM fragments, filtering out subsequences which cannot overlap any maximal exact match (MEM) of some minimum match length. Using fragments results in faster MEM-finding queries.
-
+**KeBaB** breaks nucleotide DNA patterns into pseudo-MEM fragments, filtering out subsequences which cannot overlap any maximal exact match (MEM) of some minimum match length, $L$. Using fragments results in faster MEM-finding queries. The full paper can be found on [arXiv](https://arxiv.org/abs/2502.20338).
+![Image](https://github.com/user-attachments/assets/2443f05e-e1f1-4ffe-a58c-367071a924a7)
+  
 ## How-to
 ### Compile
 Creates `./kebab` executable:
@@ -85,4 +86,9 @@ KeBaB utilizes the following third-party libraries:
 * [hll](https://github.com/mindis/hll) - HyperLogLog implementation
 
 The k-mer hash implementation is based on the original codebase/paper of [ntHash](https://github.com/bcgsc/ntHash).
+
+## Academic Use
+If using this tool or its ideas in an academic setting, please cite:
+If using col-bwt or chain statistics in an academic setting please cite:
+>Brown, N. K., Depuydt, L., Zakeri, M., Alhadi, A., Allam, N., Begleiter, D., Karpagavalli, N., Khajjayam, S., Wahed, H., Gagie, T., Langmead, B. (2025). KeBaB: $k$-mer based breaking for finding long MEMs. arXiv. arXiv:2502.20338
 
