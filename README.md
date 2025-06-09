@@ -89,6 +89,5 @@ The k-mer hash implementation is based on the original codebase/paper of [ntHash
 
 ## Academic Use
 If using this tool or its ideas in an academic setting, please cite:
-If using col-bwt or chain statistics in an academic setting please cite:
 >Brown, N. K., Depuydt, L., Zakeri, M., Alhadi, A., Allam, N., Begleiter, D., Karpagavalli, N., Khajjayam, S., Wahed, H., Gagie, T., Langmead, B. (2025). KeBaB: $k$-mer based breaking for finding long MEMs. arXiv. arXiv:2502.20338
 
