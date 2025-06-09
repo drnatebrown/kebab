@@ -106,8 +106,8 @@ std::vector<Fragment> KebabIndex<Filter>::scan_read(const char* seq, size_t len,
 
 template<typename Filter>
 std::vector<Fragment> KebabIndex<Filter>::scan_read_prefetch(const char* seq, size_t len, NtHash<>& scan_hasher, uint64_t min_mem_length, bool remove_overlaps) {
-    if (min_mem_length < k) {
-        throw std::invalid_argument("min_mem_length (" + std::to_string(min_mem_length) + ") must be greater than or equal to k (" + std::to_string(k) + ")");
+    if (min_mem_length <= k) {
+        throw std::invalid_argument("min_mem_length (" + std::to_string(min_mem_length) + ") must be greater than k (" + std::to_string(k) + ")");
     }
 
     // Based on number of hashes to adequately spread out work done when prefetching
