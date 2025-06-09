@@ -42,7 +42,7 @@ static constexpr uint16_t DEFAULT_BUILD_THREADS = 8; // overridden by call to om
 static constexpr FilterSizeMode DEFAULT_FILTER_SIZE_MODE = FilterSizeMode::PREVIOUS_POWER_OF_TWO;
 
 // SCAN
-static constexpr uint64_t DEFAULT_MIN_MEM_LENGTH = 20;
+static constexpr uint64_t DEFAULT_MIN_MEM_LENGTH = 25;
 static constexpr bool DEFAULT_SORT_FRAGMENTS = false;
 static constexpr bool DEFAULT_REMOVE_OVERLAPS = false;
 static constexpr bool DEFAULT_PREFETCH = true;
