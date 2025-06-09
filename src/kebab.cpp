@@ -353,7 +353,7 @@ int main(int argc, char** argv) {
     scan->add_option("fasta", scan_params.fasta_file, "Patterns FASTA file")->required();
     scan->add_option("-i,--index", scan_params.index_file, "KeBaB index file")->required();
     scan->add_option("-o,--output", scan_params.output_file, "Output FASTA file")->required();
-    scan->add_option("-l,--mem-length", scan_params.min_mem_length, "Minimum MEM length (must be > k-mer size of index)")
+    scan->add_option("-l,--mem-length", scan_params.min_mem_length, "Minimum MEM length (must be greater than k-mer size of index)")
         ->default_val(DEFAULT_MIN_MEM_LENGTH)
         ->check(CLI::PositiveNumber);
     scan->add_flag("-s,--sort", scan_params.sort_fragments, "Sort fragments by length");
