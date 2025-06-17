@@ -290,8 +290,8 @@ struct ScanParams {
             prefetch = false;
             threads = (threads_set) ? threads : omp_get_max_threads();
         }
-        if (this->top_t && !sort_fragments) {
-            std::cerr << "Note: top-t filtering requires sorting fragments (-s/--sort), enabling automatically." << std::endl;
+        if (top_t && !sort_fragments) {
+            note("top-t filtering requires sorting fragments (-s/--sort), enabling automatically...");
             sort_fragments = true;
         }
     }
