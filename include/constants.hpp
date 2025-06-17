@@ -1,7 +1,7 @@
 #ifndef CONSTANTS_HPP
 #define CONSTANTS_HPP
 // VERSION
-static constexpr const char* VERSION = "1.0.0";
+static constexpr const char* VERSION = "1.0.1";
 
 // I/O
 static constexpr size_t DEFAULT_BUFFER_SIZE = 64ULL * 1024ULL * 1024ULL; // 64MB

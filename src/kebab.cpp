@@ -3,6 +3,7 @@
 #include <fstream>
 #include <unistd.h>
 #include <chrono>
+#include <filesystem>
 #include <omp.h>
 
 #include "external/kseq.h"
@@ -23,10 +24,9 @@ kseq_t* open_fasta(const std::string& fasta_file, FILE** fp) {
     *fp = fopen(fasta_file.c_str(), "r");
     if (!*fp) {
         if (errno == ENOENT) {
-            std::cerr << "File not found: " << fasta_file << std::endl;
+            error_exit("File not found (" + fasta_file + ")");
         } else {
-            std::cerr << "Error opening file " << fasta_file << ": " 
-                      << strerror(errno) << std::endl;
+            error_exit("Problem opening file (" + fasta_file + "), " + strerror(errno));
         }
         return nullptr;
     }
@@ -156,7 +156,7 @@ uint64_t card_estimate(const std::string& fasta_file, uint16_t kmer_size, KmerMo
 
 struct BuildParams {
     std::string fasta_file;
-    std::string output_file;
+    std::string output_prefix;
     uint16_t kmer_size = DEFAULT_KMER_SIZE;
     KmerMode kmer_mode = DEFAULT_KMER_MODE;
     double fp_rate = DEFAULT_FP_RATE;
@@ -164,6 +164,22 @@ struct BuildParams {
     uint64_t expected_kmers = DEFAULT_EXPECTED_KMERS;
     uint16_t threads = DEFAULT_BUILD_THREADS;
     FilterSizeMode filter_size_mode = DEFAULT_FILTER_SIZE_MODE;
+
+    void validate(bool no_filter_rounding) {
+        if (output_prefix.empty()) {
+            error_exit("No output prefix specified");
+        }
+        else {
+            // Remove .kbb suffix if present
+            std::filesystem::path output_path(output_prefix);
+            if (output_path.extension() == KEBAB_FILE_SUFFIX) {
+                output_prefix = output_path.stem();
+            }
+        }
+        if (no_filter_rounding) {
+            filter_size_mode = FilterSizeMode::EXACT;
+        }
+    }
 };
 
 struct SavedOptions {
@@ -220,8 +236,7 @@ void populate_index(const BuildParams& params) {
 
     std::cerr << index.get_stats() << std::endl;
 
-    if (params.output_file)
-    std::ofstream out(params.output_file + KEBAB_FILE_SUFFIX);
+    std::ofstream out(params.output_prefix + KEBAB_FILE_SUFFIX);
     save_options(out, params);
     index.save(out);
 }
@@ -253,6 +268,33 @@ struct ScanParams {
     bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS;
     bool prefetch = DEFAULT_PREFETCH;
     uint16_t threads = DEFAULT_SCAN_THREADS;
+
+    void validate(bool no_prefetch, bool threads_set) {
+        if (output_file.empty()) {
+            error_exit("No output file specified");
+        }
+        if (index_file.empty()) {
+            error_exit("No index file specified");
+        }
+        else {
+            // Add .kbb suffix if not present
+            std::filesystem::path index_path(index_file);
+            if (index_path.extension() != KEBAB_FILE_SUFFIX) {
+                index_file += KEBAB_FILE_SUFFIX;
+            }
+            if (!std::filesystem::exists(index_file)) {
+                error_exit("Index file does not exist: " + index_file);
+            }
+        }
+        if (no_prefetch) {
+            prefetch = false;
+            threads = (threads_set) ? threads : omp_get_max_threads();
+        }
+        if (this->top_t && !sort_fragments) {
+            std::cerr << "Note: top-t filtering requires sorting fragments (-s/--sort), enabling automatically." << std::endl;
+            sort_fragments = true;
+        }
+    }
 };
 
 template<typename Index>
@@ -333,7 +375,7 @@ int main(int argc, char** argv) {
     build_params.threads = omp_get_max_threads();
 
     build->add_option("fasta", build_params.fasta_file, "Input FASTA file")->required();
-    build->add_option("-o,--output", build_params.output_file, "Output prefix for index file, [PREFIX]" + std::string(KEBAB_FILE_SUFFIX))->required();
+    build->add_option("-o,--output", build_params.output_prefix, "Output prefix for index file, [PREFIX]" + std::string(KEBAB_FILE_SUFFIX))->required();
     build->add_option("-k,--kmer-size", build_params.kmer_size, "K-mer size used to populate the index")
         ->default_val(DEFAULT_KMER_SIZE)
         ->check(CLI::PositiveNumber);
@@ -345,7 +387,7 @@ int main(int argc, char** argv) {
             {"canonical", KmerMode::CANONICAL_ONLY}
         }));
     build->add_option("-m,--expected-kmers", build_params.expected_kmers, "Expected number of k-mers (otherwise estimated)")
-        ->check(CLI::NonNegativeNumber);
+        ->check(CLI::PositiveNumber);
     build->add_option("-e,--fp-rate", build_params.fp_rate, "Desired false positive rate (between 0 and 1)")
         ->default_val(DEFAULT_FP_RATE)
         ->check(CLI::Range(0.0, 1.0))
@@ -363,6 +405,7 @@ int main(int argc, char** argv) {
 
     ScanParams scan_params;
     bool no_prefetch = false;
+    bool threads_set = false;
     scan_params.threads = (DEFAULT_PREFETCH) ? omp_get_num_procs() : omp_get_max_threads();
 
     scan->add_option("fasta", scan_params.fasta_file, "Patterns FASTA file")->required();
@@ -372,7 +415,6 @@ int main(int argc, char** argv) {
         ->default_val(DEFAULT_MIN_MEM_LENGTH)
         ->check(CLI::PositiveNumber);
     scan->add_option("--top-t", scan_params.top_t, "Keep only top-t longest fragments")
-        ->default_val(DEFAULT_TOP_T)
         ->check(CLI::PositiveNumber);
     scan->add_flag("-s,--sort", scan_params.sort_fragments, "Sort fragments by length");
     scan->add_flag("-r,--remove-overlaps", scan_params.remove_overlaps, "Merge overlapping fragments");
@@ -381,21 +423,18 @@ int main(int argc, char** argv) {
         ->check(CLI::PositiveNumber);
     scan->add_flag("--no-prefetch", no_prefetch, "Don't prefetch k-mers to avoid latency");
 
+    threads_set = (scan->count("--threads") > 0);
+
     try {
         app.parse(argc, argv);
         
-        if (build->parsed()) { 
-            if (no_filter_rounding) {
-                build_params.filter_size_mode = FilterSizeMode::EXACT;
-            }         
+        if (build->parsed()) {
+            build_params.validate(no_filter_rounding);
             omp_set_num_threads(build_params.threads);
             build_index(build_params);
         }
         if (scan->parsed()) {
-            if (no_prefetch) {
-                scan_params.prefetch = false;
-                scan_params.threads = (scan->count("--threads") > 0) ? scan_params.threads : omp_get_max_threads();
-            }
+            scan_params.validate(no_prefetch, threads_set);
             omp_set_num_threads(scan_params.threads);
             scan_reads(scan_params);
         }
