@@ -219,6 +219,7 @@ void populate_index(const BuildParams& params) {
 
     std::cerr << index.get_stats() << std::endl;
 
+    if (params.output_file)
     std::ofstream out(params.output_file + KEBAB_FILE_SUFFIX);
     save_options(out, params);
     index.save(out);
@@ -239,6 +240,7 @@ struct ScanParams {
     std::string index_file;
     std::string output_file;
     uint64_t min_mem_length = DEFAULT_MIN_MEM_LENGTH;
+    uint16_t top_t = DEFAULT_TOP_T;
     bool sort_fragments = DEFAULT_SORT_FRAGMENTS;
     bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS;
     bool prefetch = DEFAULT_PREFETCH;
@@ -273,7 +275,9 @@ void filter_reads(const ScanParams& params, std::ifstream& index_stream) {
         
         #pragma omp critical(write_fragments)
         {
-            for (const auto& fragment : fragments) {
+            size_t frags_to_write = (params.top_t) ? std::min(static_cast<size_t>(params.top_t), fragments.size()) : fragments.size();
+            for (size_t i = 0; i < frags_to_write; ++i) {
+                const auto& fragment = fragments[i];
                 // use 1-based inclusive
                 fprintf(out, ">%s:%zu-%zu\n", seq_info.seq_name, fragment.start + 1, fragment.start + fragment.length);
                 fwrite(seq_info.seq_content + fragment.start, 1, fragment.length, out);
@@ -356,6 +360,9 @@ int main(int argc, char** argv) {
     scan->add_option("-l,--mem-length", scan_params.min_mem_length, "Minimum MEM length (must be >= k-mer size of index)")
         ->default_val(DEFAULT_MIN_MEM_LENGTH)
         ->check(CLI::PositiveNumber);
+    scan->add_option("--top-t", scan_params.top_t, "Keep only top-t longest fragments")
+        ->default_val(DEFAULT_TOP_T)
+        ->check(CLI::PositiveNumber);
     scan->add_flag("-s,--sort", scan_params.sort_fragments, "Sort fragments by length");
     scan->add_flag("-r,--remove-overlaps", scan_params.remove_overlaps, "Merge overlapping fragments");
     scan->add_option("-t,--threads", scan_params.threads, "Number of threads to use")
@@ -369,7 +376,7 @@ int main(int argc, char** argv) {
         if (build->parsed()) { 
             if (no_filter_rounding) {
                 build_params.filter_size_mode = FilterSizeMode::EXACT;
-            }
+            }         
             omp_set_num_threads(build_params.threads);
             build_index(build_params);
         }
