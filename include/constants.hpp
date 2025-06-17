@@ -1,7 +1,7 @@
 #ifndef CONSTANTS_HPP
 #define CONSTANTS_HPP
 // VERSION
-static constexpr const char* VERSION = "0.2.0";
+static constexpr const char* VERSION = "1.0.0";
 
 // I/O
 static constexpr size_t DEFAULT_BUFFER_SIZE = 64ULL * 1024ULL * 1024ULL; // 64MB
@@ -42,7 +42,7 @@ static constexpr uint16_t DEFAULT_BUILD_THREADS = 8; // overridden by call to om
 static constexpr FilterSizeMode DEFAULT_FILTER_SIZE_MODE = FilterSizeMode::PREVIOUS_POWER_OF_TWO;
 
 // SCAN
-static constexpr uint64_t DEFAULT_MIN_MEM_LENGTH = 20;
+static constexpr uint64_t DEFAULT_MIN_MEM_LENGTH = 25;
 static constexpr uint16_t DEFAULT_TOP_T = 0; // 0 means no top-t filtering
 static constexpr bool DEFAULT_SORT_FRAGMENTS = false;
 static constexpr bool DEFAULT_REMOVE_OVERLAPS = false;

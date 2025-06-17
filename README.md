@@ -1,8 +1,11 @@
-![Image](https://github.com/user-attachments/assets/ee9725a5-2b51-4459-95de-1f7e7ea88809)  
-_**K**-m**e**r **Ba**sed **B**reaking for finding maximal exact matches._
+![Image](https://github.com/user-attachments/assets/ceccfb5b-b557-435b-b009-1aa7f3424bb2)  
+_**K**-m**e**r **Ba**sed **B**reaking for finding long maximal exact matches._  
+_(Release Version 1.0.0)_
   
-**KeBaB** breaks nucleotide DNA patterns into fragments, filtering out subsequences which cannot overlap any maximal exact match (MEM) of some minimum match length, resulting in faster MEM-finding queries.
-
+**KeBaB** breaks nucleotide DNA patterns into pseudo-MEM fragments, filtering out subsequences which cannot overlap any maximal exact match (MEM) of some minimum match length, $L$. Using fragments results in faster MEM-finding queries. The full paper can be found on [arXiv](https://arxiv.org/abs/2502.20338).
+  
+![Image](https://github.com/user-attachments/assets/2443f05e-e1f1-4ffe-a58c-367071a924a7)
+  
 ## How-to
 ### Compile
 Creates `./kebab` executable:
@@ -49,8 +52,8 @@ Options:
   -h,--help                   Print this help message and exit
   -i,--index TEXT REQUIRED    KeBaB index file
   -o,--output TEXT REQUIRED   Output FASTA file
-  -l,--mem-length UINT:POSITIVE [20] 
-                              Minimum MEM length (must be >= k-mer size of index)
+  -l,--mem-length UINT:POSITIVE [25] 
+                              Minimum MEM length (must be greater than k-mer size of index)
   -s,--sort                   Sort fragments by length
   -r,--remove-overlaps        Merge overlapping fragments
   -t,--threads UINT:POSITIVE [8] 
@@ -84,4 +87,8 @@ KeBaB utilizes the following third-party libraries:
 * [hll](https://github.com/mindis/hll) - HyperLogLog implementation
 
 The k-mer hash implementation is based on the original codebase/paper of [ntHash](https://github.com/bcgsc/ntHash).
+
+## Academic Use
+If using this tool or its ideas in an academic setting, please cite:
+>Brown, N. K., Depuydt, L., Zakeri, M., Alhadi, A., Allam, N., Begleiter, D., Karpagavalli, N., Khajjayam, S., Wahed, H., Gagie, T., Langmead, B. (2025). KeBaB: $k$-mer based breaking for finding long MEMs. arXiv. arXiv:2502.20338
 

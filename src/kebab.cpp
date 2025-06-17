@@ -13,6 +13,7 @@
 #include "kebab/nt_hash.hpp"
 
 #include "constants.hpp"
+#include "util.hpp"
 
 /* =============================== UTILITIES =============================== */
 
@@ -226,6 +227,13 @@ void populate_index(const BuildParams& params) {
 }
 
 void build_index(const BuildParams& params) {
+    if (params.fp_rate <= 0 || params.fp_rate >= 1) {
+        error_exit("Desired false positive rate (" + std::to_string(params.fp_rate) + ") must be between 0 and 1");
+    }
+    if (params.hash_funcs > std::size(SEEDS)) {
+        error_exit("Number of hashes (" + std::to_string(params.hash_funcs) + ") must be less than the number of seeds (" + std::to_string(std::size(SEEDS)) + ")");
+    }
+
     if (use_shift_filter(params.filter_size_mode)) {
         populate_index<kebab::KebabIndex<kebab::ShiftFilter>>(params);
     } else {
@@ -250,6 +258,9 @@ struct ScanParams {
 template<typename Index>
 void filter_reads(const ScanParams& params, std::ifstream& index_stream) {
     Index index(index_stream);
+    if (params.min_mem_length <= index.get_k()) {
+        error_exit("min_mem_length (" + std::to_string(params.min_mem_length) + ") must be greater than k (" + std::to_string(index.get_k()) + ")");
+    }
 
     FILE* fp;
     kseq_t* seq = open_fasta(params.fasta_file, &fp);
@@ -357,7 +368,7 @@ int main(int argc, char** argv) {
     scan->add_option("fasta", scan_params.fasta_file, "Patterns FASTA file")->required();
     scan->add_option("-i,--index", scan_params.index_file, "KeBaB index file")->required();
     scan->add_option("-o,--output", scan_params.output_file, "Output FASTA file")->required();
-    scan->add_option("-l,--mem-length", scan_params.min_mem_length, "Minimum MEM length (must be >= k-mer size of index)")
+    scan->add_option("-l,--mem-length", scan_params.min_mem_length, "Minimum MEM length (must be greater than k-mer size of index)")
         ->default_val(DEFAULT_MIN_MEM_LENGTH)
         ->check(CLI::PositiveNumber);
     scan->add_option("--top-t", scan_params.top_t, "Keep only top-t longest fragments")
