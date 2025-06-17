@@ -1,6 +1,6 @@
 ![Image](https://github.com/user-attachments/assets/ceccfb5b-b557-435b-b009-1aa7f3424bb2)  
 _**K**-m**e**r **Ba**sed **B**reaking for finding long maximal exact matches._  
-_(Release Version 1.0.0)_
+_(Release Version 1.0.1)_
   
 **KeBaB** breaks nucleotide DNA patterns into pseudo-MEM fragments, filtering out subsequences which cannot overlap any maximal exact match (MEM) of some minimum match length, $L$. Using fragments results in faster MEM-finding queries. The full paper can be found on [arXiv](https://arxiv.org/abs/2502.20338).
   
@@ -29,7 +29,7 @@ Options:
                               K-mer size used to populate the index
   --kmer-mode ENUM:value in {both->0,canonical->1,forward->2} OR {0,1,2} [1] 
                               K-mer strands to include in the index
-  -m,--expected-kmers UINT:NONNEGATIVE
+  -m,--expected-kmers UINT:POSITIVE
                               Expected number of k-mers (otherwise estimated)
   -e,--fp-rate FLOAT:FLOAT in [0 - 1] [0.1] 
                               Desired false positive rate (between 0 and 1)
@@ -54,6 +54,7 @@ Options:
   -o,--output TEXT REQUIRED   Output FASTA file
   -l,--mem-length UINT:POSITIVE [25] 
                               Minimum MEM length (must be greater than k-mer size of index)
+  --top-t UINT:POSITIVE       Keep only top-t longest fragments
   -s,--sort                   Sort fragments by length
   -r,--remove-overlaps        Merge overlapping fragments
   -t,--threads UINT:POSITIVE [8] 
