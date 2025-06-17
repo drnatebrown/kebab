@@ -290,9 +290,18 @@ struct ScanParams {
             prefetch = false;
             threads = (threads_set) ? threads : omp_get_max_threads();
         }
-        if (top_t && !sort_fragments) {
-            note("top-t filtering requires sorting fragments (-s/--sort), enabling automatically...");
-            sort_fragments = true;
+        if (top_t) {
+            if (!sort_fragments) {
+                note("top-t filtering requires sorting fragments (-s/--sort), enabling automatically...");
+                sort_fragments = true;
+            }
+            if (remove_overlaps) {
+                warning("Downstream applications for top-t longest fragments may be affected by removing overlaps (-r/--remove-overlaps)");
+                remove_overlaps = false;
+            }
+        }
+        else if (sort_fragments && remove_overlaps) {
+            warning("Downstream applications for sorted fragments may be affected by removing overlaps (-r/--remove-overlaps)");
         }
     }
 };
