@@ -72,6 +72,12 @@ std::vector<Fragment> KebabIndex<Filter>::scan_read(const char* seq, size_t len,
 
     size_t start = 0;
     size_t last_frag_end = 0;
+    size_t i = 0;
+    size_t numb_of_kmers = len-k+1;
+    size_t buffer_capacity = min_mem_length-k+1;
+
+    std::vector<uint64_t> buffer;
+    buffer.reserve(buffer_capacity);
 
     // end is exclusive
     auto update_fragments = [&](size_t frag_end) {
@@ -86,20 +92,41 @@ std::vector<Fragment> KebabIndex<Filter>::scan_read(const char* seq, size_t len,
         }
     };
 
-    auto check_kmer = [&](size_t pos) {
-        if (!bf.contains(scan_hash(scan_hasher))) {
-            update_fragments(pos);
-            start = pos - k + 2; // pos - (k - 1) + 1 -> move to start of k-mer, plus one to move past the offending k-mer
-        }
+    auto fill_buffer = [&]() {
+      for (size_t bi = 0; bi < buffer_capacity && i < numb_of_kmers; bi++, i++ ){
+        buffer[bi] = scan_hash(scan_hasher);
+        scan_hasher.unsafe_roll();
+      }
     };
 
-    // k-mer identified by position of last character
-    check_kmer(k - 1); // first doesn't need to be rolled
-    for (size_t i = k; i < len; ++i) {
+    // back scanning of the buffer, decides on the start position
+    auto buffer_scan = [&]() {
+      for (size_t bi = buffer_capacity-1; bi<buffer_capacity; bi--) {
+        if (!bf.contains(buffer[bi])) {
+          // (buffer_capacity-bi-1) gives the number of kmers that passed the back check
+          start = i - (buffer_capacity-bi-1);
+          break;
+        }
+      }
+    };
+ 
+    // decides on the end position and reports fragment once end is reached
+    auto forward_scan = [&]() {
+      for (; i < numb_of_kmers; i++) {
+        if (!bf.contains(scan_hash(scan_hasher))) break;
         scan_hasher.unsafe_roll();
-        check_kmer(i);
+      }
+      scan_hasher.unsafe_roll();
+      update_fragments(i + (k-1));
+      i++; // move past the offending kmer
+    };
+
+    while (i < numb_of_kmers) {
+      start = i;
+      fill_buffer();
+      buffer_scan();
+      forward_scan();
     }
-    update_fragments(len);
 
     return fragments;
 }
