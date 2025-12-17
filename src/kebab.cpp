@@ -46,7 +46,7 @@ template<typename ProcessFunc>
 void process_sequences(kseq_t* seq, uint16_t threads, ProcessFunc process_func) {
     #pragma omp parallel
     {
-        SeqInfo seq_info;
+        SeqInfo seq_info{};
         while (true) {
             #pragma omp critical(read_seq)
             {
