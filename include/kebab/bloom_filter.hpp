@@ -8,6 +8,8 @@
 #include <cmath>
 #include <iostream>
 #include <omp.h>
+#include <bit>
+
 
 #include "constants.hpp"
 
@@ -53,16 +55,13 @@ namespace kebab {
 
 using word_t = uint64_t;
 static constexpr size_t BITS_PER_WORD = sizeof(word_t) * CHAR_BIT;
-
 inline size_t calculate_num_words(size_t size) {
     return std::ceil(static_cast<double>(size) / BITS_PER_WORD);
 }
 
 struct PrefetchInfo {
-    std::vector<uint64_t> hash_vals;
-    std::vector<const word_t*> words;
-
-    PrefetchInfo(size_t num_hashes) : hash_vals(num_hashes), words(num_hashes) {}
+    word_t mask;
+    size_t block_hash;
 };
 
 template<typename Hash = MultiplyShift>
@@ -75,55 +74,69 @@ public:
     }
 
     void add(uint64_t val) {
-        for (size_t i = 0; i < num_hashes; ++i) {
-            uint64_t hash_val = hash(val, SEEDS[i]);
-            word_t* word = get_word(hash_val);
-            word_t bit_mask = get_bit_mask(hash_val);
+      size_t block_hash = hash(val, SEEDS[0]);
 
-            // Ensure that word is updated atomically for thread safety
-            word_t old_val;
-            #pragma omp atomic capture
-            {
-                old_val = *word;
-                *word |= bit_mask;
-            }
-            if (!(old_val & bit_mask)) {
-                #pragma omp atomic
-                set_bits++;
-            }
+      size_t block_idx = block_hash/BITS_PER_WORD;
+      size_t word_start = block_hash % BITS_PER_WORD; 
+      size_t mask = 0;
+
+      for (size_t i=0; i<num_hashes; ++i){
+        mask |= (1ULL << (hash(val, SEEDS[i+1])%BITS_PER_WORD));
+      }
+      
+    
+      if (word_start == 0) {
+        size_t *block = &filter[block_idx];
+        size_t old_block{};
+        #pragma omp atomic capture
+        {
+          old_block = *block;
+          *block |= mask;
         }
+
+        #pragma omp atomic update
+          set_bits += (std::popcount(*block) - std::popcount(old_block));
+
+      } else {
+        size_t *block1 = &filter[block_idx];
+        size_t *block2 = &filter[block_idx + 1];
+        word_t old_block1{};
+        word_t old_block2{};
+
+        #pragma omp atomic capture
+        {
+          old_block1 = *block1;
+          *block1 |= (mask << word_start);
+        }
+        #pragma omp atomic capture
+        {
+          old_block2 = *block2;
+          *block2 |= (mask >> (BITS_PER_WORD-word_start));
+        }
+        #pragma omp atomic update
+          set_bits += (std::popcount(*block1) - std::popcount(old_block1)) + (std::popcount(*block2) - std::popcount(old_block2));
+      }
     }
 
     bool contains(uint64_t val) const {
-        for (size_t i = 0; i < num_hashes; ++i) {
-            uint64_t hash_val = hash(val, SEEDS[i]);
-            word_t word = get_word(hash_val);
-            word_t bit_mask = get_bit_mask(hash_val);
-
-            if (!(word & bit_mask)) {
-                return false;
-            }
-        }
-        return true;
+      size_t word = get_word(hash(val, SEEDS[0]));
+      for (size_t i=0; i<num_hashes; ++i){
+        size_t bit_offset = hash(val, SEEDS[i+1]) % BITS_PER_WORD;
+        if (!((word >> bit_offset) & word_t{1}) ) return false; 
+      }
+      return true;
     }
 
     void prefetch_words(uint64_t val, PrefetchInfo& info) {
-        // Compute hash values, store words for later access, and issue prefetches all in one loop
-        for (size_t i = 0; i < num_hashes; ++i) {
-            info.hash_vals[i] = hash(val, SEEDS[i]);
-            info.words[i] = get_word_fetch(info.hash_vals[i]);
-            L1_PREFETCH(info.words[i]);
-        }
+			// Compute hash values, store words for later access, and issue prefetches all in one loop
+			info.block_hash  = hash(val, SEEDS[0]);
+			info.mask = get_mask(val);
+			L1_PREFETCH(get_word_fetch(info.block_hash));
     }
 
     bool check_prefetch(const PrefetchInfo& info) const {
-        for (size_t i = 0; i < num_hashes; ++i) {
-            word_t bit_mask = get_bit_mask(info.hash_vals[i]);
-            if (!(*info.words[i] & bit_mask)) {
-                return false;
-            }
-        }
-        return true;
+      word_t word = get_word(info.block_hash);
+			return (info.mask & word) == info.mask;
     }
 
     size_t get_num_hashes() const {
@@ -153,7 +166,8 @@ public:
         in.read(reinterpret_cast<char*>(&bits), sizeof(bits));
         in.read(reinterpret_cast<char*>(&set_bits), sizeof(set_bits));
 
-        filter = std::vector<word_t>(calculate_num_words(bits), 0ULL);
+        // Adding 1 to account for the protected padding region of the filter
+        filter = std::vector<word_t>(calculate_num_words(bits) + 1, 0ULL);
         in.read(reinterpret_cast<char*>(filter.data()), filter.size() * sizeof(word_t));
 
         in.read(reinterpret_cast<char*>(&num_hashes), sizeof(num_hashes));
@@ -197,8 +211,8 @@ private:
         }
 
         set_bits = 0;
-        filter = std::vector<word_t>(calculate_num_words(bits), 0ULL);
-
+        // Filter is extended by a word 
+        filter = std::vector<word_t>(calculate_num_words(bits) + 1, 0ULL);
         this->num_hashes = (num_hashes == 0) ? optimal_hashes(error_rate) : num_hashes;
         hash = Hash(bits);
         validate_num_hashes();
@@ -250,16 +264,25 @@ private:
         }
     }
 
-    word_t* get_word(uint64_t hash_val) noexcept {
-        return &filter[hash_val / BITS_PER_WORD];
-    }
-
     const word_t* get_word_fetch(uint64_t hash_val) const noexcept {
         return &filter[hash_val / BITS_PER_WORD];
     }
 
-    word_t get_word(uint64_t hash_val) const noexcept {
-        return filter[hash_val / BITS_PER_WORD];
+    word_t get_word(uint64_t block_hash) const noexcept {
+        if (block_hash % BITS_PER_WORD == 0) {
+          return filter[block_hash / BITS_PER_WORD];
+        }
+        size_t offset = block_hash % BITS_PER_WORD;
+        return (filter[block_hash/BITS_PER_WORD +1]<<(BITS_PER_WORD-offset)) | (filter[block_hash/BITS_PER_WORD] >> offset);
+    }
+
+    inline word_t get_mask(uint64_t val) {
+      word_t mask{0};
+      for (size_t i=0; i<num_hashes; ++i) {
+        size_t bit_offset = hash(val, SEEDS[i+1]) % BITS_PER_WORD;
+        mask |= (word_t{1} << bit_offset);
+      }
+			return mask;
     }
 
     static constexpr word_t get_bit_mask(uint64_t hash_val) noexcept {

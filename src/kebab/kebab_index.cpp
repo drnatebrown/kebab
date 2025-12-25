@@ -1,4 +1,5 @@
 #include "kebab/kebab_index.hpp"
+#include <chrono>
 
 namespace kebab {
 
@@ -53,7 +54,12 @@ std::vector<Fragment> KebabIndex<Filter>::scan_read(const char* seq, size_t len,
     thread_local static NtHash<> scan_hasher(k, scan_rev_comp);
 
     if (prefetch) {
-        return scan_read_prefetch(seq, len, scan_hasher, min_mem_length, remove_overlaps);
+				//auto start = std::chrono::high_resolution_clock::now();
+        //auto res =  scan_read_prefetch(seq, len, scan_hasher, min_mem_length, remove_overlaps);
+				//auto end = std::chrono::high_resolution_clock::now();
+				//std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << std::endl;
+        //return res;
+        return  scan_read_prefetch(seq, len, scan_hasher, min_mem_length, remove_overlaps);
     }
     else {
         return scan_read(seq, len, scan_hasher, min_mem_length, remove_overlaps);
@@ -112,7 +118,7 @@ std::vector<Fragment> KebabIndex<Filter>::scan_read_prefetch(const char* seq, si
 
     // Based on number of hashes to adequately spread out work done when prefetching
     const size_t NUM_PREFETCH_KMERS = PREFETCH_DISTANCE/bf.get_num_hashes();
-    std::vector<PendingKmer> pending_kmers(NUM_PREFETCH_KMERS, PendingKmer(bf.get_num_hashes()));
+    std::vector<PendingKmer> pending_kmers(NUM_PREFETCH_KMERS, PendingKmer());
     size_t pending_head = 0;
     size_t pending_tail = 0;
     size_t pending_count = 0;

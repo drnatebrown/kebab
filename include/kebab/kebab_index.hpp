@@ -50,7 +50,7 @@ private:
         PrefetchInfo prefetch_info;
         size_t pos;
 
-        PendingKmer(size_t num_hashes) : prefetch_info(num_hashes), pos(0) {}
+        PendingKmer() : prefetch_info{}, pos(0) {}
     };
 
     std::vector<Fragment> scan_read(const char* seq, size_t len, NtHash<>& scan_hasher, uint64_t min_mem_length, bool remove_overlaps = DEFAULT_REMOVE_OVERLAPS);
