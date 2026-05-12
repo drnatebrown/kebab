@@ -1,4 +1,4 @@
-![Image](https://github.com/user-attachments/assets/ceccfb5b-b557-435b-b009-1aa7f3424bb2)  
+![Image](https://github.com/user-attachments/assets/6701119b-dedb-49f0-bde5-0fff51b135ac)  
 _**K**-m**e**r **Ba**sed **B**reaking for finding long maximal exact matches._  
 _(Release Version 1.0.1)_
   
